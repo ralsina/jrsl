@@ -1,0 +1,25 @@
+name: jrsl
+version: 0.1.0
+
+authors:
+  - Roberto Alsina <roberto.alsina@gmail.com>
+
+targets:
+  jrsl:
+    main: src/jrsl.cr
+
+dependencies:
+  drawille-cr:
+    github: joeyrobert/drawille-cr
+    branch: master
+  tput:
+    github: crystallabs/tput.cr
+    version: ~> 1.0
+  stumpy_jpeg:
+    github: reiswindy/stumpy_jpeg
+  markterm:
+    github: ralsina/markterm
+
+crystal: '>= 1.14.0'
+
+license: MIT

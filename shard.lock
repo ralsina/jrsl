@@ -1,0 +1,82 @@
+version: 2.0
+shards:
+  baked_file_system:
+    git: https://github.com/ralsina/baked_file_system.git
+    version: 0.10.0+git.commit.beb373124c7a235cfb9cd94e36849d8168eaa04b
+
+  base58:
+    git: https://github.com/crystal-china/base58.cr.git
+    version: 0.1.0+git.commit.2b0564a975171f4507c33251e0c0ab7990459e23
+
+  crystallabs-helpers:
+    git: https://github.com/crystallabs/crystallabs-helpers.cr.git
+    version: 1.0.1
+
+  docopt:
+    git: https://github.com/chenkovsky/docopt.cr.git
+    version: 0.2.0+git.commit.620fce4f334ff15d7321e5ecb6665ad258fe9297
+
+  drawille-cr:
+    git: https://github.com/joeyrobert/drawille-cr.git
+    version: 0.2.0+git.commit.3f3a2be243f6edee5c1223b584d19db0f38d1073
+
+  ioctl:
+    git: https://github.com/crystal-posix/ioctl.cr.git
+    version: 1.0.0
+
+  markd:
+    git: https://github.com/icyleaf/markd.git
+    version: 0.5.0
+
+  markterm:
+    git: https://github.com/ralsina/markterm.git
+    version: 0.5.2
+
+  matrix:
+    git: https://github.com/exilor/matrix.git
+    version: 0.1.0+git.commit.db74e62dcc0b65e548bf1a8eda65657310f57152
+
+  pcf-parser:
+    git: https://github.com/l3kn/pcf-parser.git
+    version: 0.1.1
+
+  sixteen:
+    git: https://github.com/ralsina/sixteen.git
+    version: 0.4.2
+
+  stumpy_core:
+    git: https://github.com/stumpycr/stumpy_core.git
+    version: 1.9.1
+
+  stumpy_jpeg:
+    git: https://github.com/reiswindy/stumpy_jpeg.git
+    version: 0.1.0+git.commit.714ad6c1f905cb503c53843cda8285f52592e2c2
+
+  stumpy_png:
+    git: https://github.com/stumpycr/stumpy_png.git
+    version: 5.0.1
+
+  stumpy_utils:
+    git: https://github.com/stumpycr/stumpy_utils.git
+    version: 0.5.1
+
+  tartrazine:
+    git: https://github.com/ralsina/tartrazine.git
+    version: 0.11.1
+
+  term-screen:
+    git: https://github.com/crystal-term/screen.git
+    version: 0.1.0+git.commit.ea51ee8d1f6c286573c41a7e784d31c80af7b9bb
+
+  tput:
+    git: https://github.com/crystallabs/tput.cr.git
+    version: 1.0.8
+
+  unibilium:
+    git: https://github.com/crystallabs/unibilium.cr.git
+    version: 1.0.1
+
+  unibilium-shim:
+    git: https://github.com/crystallabs/unibilium-shim.cr.git
+    version: 1.1.0
+
