@@ -86,17 +86,23 @@ def main
       else
         case key
         when Tput::Key::Up
-          y_offset -= 1 if y_offset > 0
-          break
+          if y_offset > 0
+            y_offset -= 1
+            break
+          end
         when Tput::Key::Down
           y_offset += 1
           break
         when Tput::Key::Left
-          slide -= 1 if slide > 0
-          break
+          if slide > 0
+            slide -= 1
+            break
+          end
         when Tput::Key::Right
-          slide += 1 if File.exists? "charla/#{slide + 1}"
-          break
+          if File.exists? "charla/#{slide + 1}"
+            slide += 1
+            break
+          end
         end
       end
     end
