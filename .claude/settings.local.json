@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(shards build --help:*)",
+      "Bash(shards --help:*)",
+      "Bash(rake:*)",
+      "Bash(make:*)",
+      "WebSearch",
+      "mcp__web-reader__webReader",
+      "mcp__web-search-prime__webSearchPrime",
+      "Bash(shards install:*)",
+      "Bash(shards build:*)",
+      "Bash(ameba:*)",
+      "Bash(crystal spec:*)",
+      "Bash(pkill:*)",
+      "Bash(xxd:*)",
+      "Bash(crystal eval:*)",
+      "Bash(./bin/jrsl:*)",
+      "Bash(/tmp/test_crimage.cr << 'EOF'\nrequire \"crimage\"\n\nimg = CrImage.read\\(\"charla/12/image.jpg\"\\)\nputs \"Image class: #{img.class}\"\nputs \"Image bounds: #{img.bounds}\"\nputs \"Methods: #{img.methods.sort.first\\(30\\).join\\(\", \"\\)}\"\nEOF)",
+      "Bash(crystal run:*)",
+      "Bash(git worktree remove:*)",
+      "mcp__acp__Edit",
+      "mcp__acp__Write",
+      "mcp__acp__Bash"
+    ]
+  }
+}

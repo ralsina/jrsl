@@ -1,3 +1,0 @@
-# Filosofías Personales
-
-* Eh?
