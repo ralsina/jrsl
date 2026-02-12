@@ -3,6 +3,7 @@ require "tput"
 require "colorize"
 require "yaml"
 require "docopt"
+require "sixteen"
 
 module Jrsl
   VERSION = "0.1.0"
@@ -132,8 +133,12 @@ module Jrsl
   end
 end
 
-def print_md(tput, markdown, x, y, h, y_offset = 0)
-  rendered = Markd.to_term(markdown)
+def print_md(tput, markdown, x, y, h, theme, theme_name, y_offset = 0)
+  rendered = if theme && theme_name
+               Markd.to_term(markdown, theme: theme_name)
+             else
+               Markd.to_term(markdown)
+             end
   lines = rendered.split("\n")[y_offset..-1]
   max_y = y + h
 
@@ -150,24 +155,33 @@ def print_md(tput, markdown, x, y, h, y_offset = 0)
   end
 end
 
-def print_figlet(tput, text, x, y)
+def print_figlet(tput, text, x, y, theme)
   normalized_text = Jrsl.normalize_for_figlet(text)
   output = `figlet -f smbraille.tlf #{normalized_text}`
-  lines = output.split("\n").map { |line| line.rstrip }.reject &.empty?
+  lines = output.split("\n").map(&.rstrip).reject &.empty?
 
   # Find the maximum line length
   max_length = lines.max_of &.size
+
+  # Use base16 colors: base01 for background, base05 for foreground
+  if theme
+    bg_rgb = theme["01"]
+    fg_rgb = theme["05"]
+  else
+    bg_rgb = Sixteen::Color.new(255, 255, 255)
+    fg_rgb = Sixteen::Color.new(0, 0, 0)
+  end
 
   # Right-pad all lines to the same length, then rjust to screen width
   lines.each do |line|
     line = line.ljust(max_length).rjust(tput.screen.width)
     tput.cursor_pos y, x
-    tput.echo(line.colorize(:black).on_white.mode(:bold))
+    tput.echo(line.colorize(fg_rgb.colorize).back(bg_rgb.colorize).mode(:bold))
     y += 1
   end
 end
 
-def build_footer(metadata : Jrsl::PresentationMetadata, slide_num : Int32, total_slides : Int32, width : Int32)
+def build_footer(metadata : Jrsl::PresentationMetadata, slide_num : Int32, total_slides : Int32, width : Int32, theme)
   parts = [] of String
 
   if event = metadata.event
@@ -187,7 +201,17 @@ def build_footer(metadata : Jrsl::PresentationMetadata, slide_num : Int32, total
   footer_text += "#{slide_num + 1}/#{total_slides}" if slide_num >= 0
 
   footer_text = footer_text.center(width - 2)
-  footer_text.colorize(:black).back(:green)
+
+  # Use base16 colors: base01 for background, base05 for foreground
+  if theme
+    bg_rgb = theme["01"]
+    fg_rgb = theme["05"]
+  else
+    bg_rgb = Sixteen::Color.new(0, 128, 0)
+    fg_rgb = Sixteen::Color.new(0, 0, 0)
+  end
+
+  footer_text.colorize(fg_rgb.colorize).back(bg_rgb.colorize)
 end
 
 def main
@@ -195,13 +219,16 @@ def main
   JRSL - Terminal-based presentation program
 
   Usage:
-    jrsl [<file>]
+    jrsl [-t <theme>] [<file>]
     jrsl -h | --help
     jrsl --version
+    jrsl --list-themes
 
   Options:
     -h --help       Show this help message
     --version       Show version
+    --list-themes    List available color themes
+    -t <theme>      Color theme to use
 
   Arguments:
     <file>          Presentation file to open [default: charla/charla.md]
@@ -214,11 +241,38 @@ def main
     exit 0
   end
 
+  if args["--list-themes"]
+    puts "Available color themes:"
+    Sixteen.available_themes.each do |theme|
+      puts "  #{theme}"
+    end
+    exit 0
+  end
+
   slides_file = if args["<file>"].is_a?(String)
-                      args["<file>"].as(String)
-                    else
-                      "charla/charla.md"
-                    end
+                  args["<file>"].as(String)
+                else
+                  "charla/charla.md"
+                end
+
+  # Get theme
+  theme_name = if args["-t"].is_a?(String)
+                 args["-t"].as(String).downcase
+               else
+                 nil
+               end
+
+  STDERR.puts "Debug: args[-t] = #{args["-t"].inspect}, theme_name = #{theme_name.inspect}"
+
+  theme = nil
+  if theme_name
+    begin
+      theme = Sixteen.theme_with_fallback(theme_name)
+    rescue e : Exception
+      STDERR.puts "Warning: Theme '#{theme_name}' not found, using default colors"
+      theme = nil
+    end
+  end
 
   terminfo = Unibilium::Terminfo.from_env
   tput = Tput.new terminfo
@@ -227,12 +281,12 @@ def main
 
   # Parse slides from the specified file
   slides, metadata = if File.exists?(slides_file)
-                        Jrsl.parse_slides(File.read(slides_file))
-                      else
-                        STDERR.puts "Error: File not found: #{slides_file}"
-                        tput.cursor_reset
-                        exit 1
-                      end
+                       Jrsl.parse_slides(File.read(slides_file))
+                     else
+                       STDERR.puts "Error: File not found: #{slides_file}"
+                       tput.cursor_reset
+                       exit 1
+                     end
 
   y_offset = 0
   slide = 0
@@ -241,7 +295,7 @@ def main
     tput.civis
 
     # Build and print footer using metadata
-    footer = build_footer(metadata, slide, slides.size, tput.screen.width)
+    footer = build_footer(metadata, slide, slides.size, tput.screen.width, theme)
     tput.cursor_pos tput.screen.height, 0
     tput.echo(footer)
 
@@ -250,12 +304,12 @@ def main
 
       # Print title if present
       unless current.title.empty?
-        print_figlet(tput, current.title, 0, 0)
+        print_figlet(tput, current.title, 0, 0, theme)
       end
 
       # Print content if present
       unless current.content.empty?
-        print_md(tput, current.content, 0, 3, tput.screen.height - 6, y_offset)
+        print_md(tput, current.content, 0, 3, tput.screen.height - 6, theme, theme_name, y_offset)
       end
     end
 
