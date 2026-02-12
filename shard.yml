@@ -19,7 +19,9 @@ dependencies:
     github: reiswindy/stumpy_jpeg
   markterm:
     github: ralsina/markterm
+  docopt:
+    github: ralsina/docopt.cr
 
-crystal: '>= 1.14.0'
+crystal: ">= 1.14.0"
 
 license: MIT

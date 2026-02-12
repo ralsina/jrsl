@@ -2,6 +2,7 @@ require "markterm"
 require "tput"
 require "colorize"
 require "yaml"
+require "docopt"
 
 module Jrsl
   VERSION = "0.1.0"
@@ -190,17 +191,47 @@ def build_footer(metadata : Jrsl::PresentationMetadata, slide_num : Int32, total
 end
 
 def main
+  doc = <<-DOC
+  JRSL - Terminal-based presentation program
+
+  Usage:
+    jrsl [<file>]
+    jrsl -h | --help
+    jrsl --version
+
+  Options:
+    -h --help       Show this help message
+    --version       Show version
+
+  Arguments:
+    <file>          Presentation file to open [default: charla/charla.md]
+  DOC
+
+  args = Docopt.docopt(doc)
+
+  if args["--version"]
+    puts "JRSL version #{Jrsl::VERSION}"
+    exit 0
+  end
+
+  slides_file = if args["<file>"].is_a?(String)
+                      args["<file>"].as(String)
+                    else
+                      "charla/charla.md"
+                    end
+
   terminfo = Unibilium::Terminfo.from_env
   tput = Tput.new terminfo
 
   tput.alternate
 
-  # Parse slides from the single file
-  slides_file = "charla/charla.md"
+  # Parse slides from the specified file
   slides, metadata = if File.exists?(slides_file)
                         Jrsl.parse_slides(File.read(slides_file))
                       else
-                        {[] of Jrsl::Slide, Jrsl::PresentationMetadata.new}
+                        STDERR.puts "Error: File not found: #{slides_file}"
+                        tput.cursor_reset
+                        exit 1
                       end
 
   y_offset = 0
