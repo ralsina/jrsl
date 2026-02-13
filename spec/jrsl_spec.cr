@@ -6,8 +6,14 @@ module Jrsl
   class Slide
     property title : String
     property content : String
+    property image_path : String?
+    property image_position : String
+    property image_max_height : Int32?
 
     def initialize(@title : String, @content : String = "")
+      @image_path = nil
+      @image_position = "center"
+      @image_max_height = nil
     end
   end
 
@@ -15,6 +21,9 @@ module Jrsl
     include YAML::Serializable
 
     property title : String
+    property image : String?
+    property image_position : String?
+    property image_height : Int32?
   end
 
   class PresentationMetadata
@@ -97,7 +106,13 @@ module Jrsl
       # Create slide with title and content, preserving trailing newline if present
       content = content_lines.join("\n")
       content += "\n" unless content.lines.empty?
-      slides << Slide.new(title, content)
+
+      # Create slide and set image properties
+      slide = Slide.new(title, content)
+      slide.image_path = slide_metadata.image
+      slide.image_position = slide_metadata.image_position || "center"
+      slide.image_max_height = slide_metadata.image_height
+      slides << slide
     end
 
     {slides, metadata}
@@ -215,6 +230,26 @@ describe Jrsl do
       metadata.author.should eq("Roberto")
       metadata.event.should eq("JRSL 2024")
       metadata.location.should eq("Santa Fe")
+    end
+  end
+
+  describe ".render_image_to_string" do
+    it "renders the actual presentation image without crashing" do
+      image_path = "#{__DIR__}/../charla/ralsina.jpg"
+      result = Jrsl.render_image_to_string(image_path, 119, 14)
+
+      # Should return a tuple with rendered string and line count
+      result.should_not be_nil
+      rendered, line_count = result.not_nil!
+      rendered.should be_a(String)
+      rendered.size.should be > 0
+      line_count.should be > 0
+      line_count.should be <= 14
+    end
+
+    it "returns nil for non-existent image" do
+      result = Jrsl.render_image_to_string("/nonexistent/image.jpg", 50, 10)
+      result.should be_nil
     end
   end
 end

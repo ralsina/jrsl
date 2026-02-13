@@ -21,7 +21,14 @@
       "Bash(git worktree remove:*)",
       "mcp__acp__Edit",
       "mcp__acp__Write",
-      "mcp__acp__Bash"
+      "mcp__acp__Bash",
+      "Bash(ls:*)",
+      "Bash(echo:*)",
+      "Bash(grep:*)",
+      "Bash(timg:*)",
+      "Bash(identify:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ]
   }
 }

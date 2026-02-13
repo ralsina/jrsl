@@ -9,9 +9,6 @@ targets:
     main: src/main.cr
 
 dependencies:
-  drawille-cr:
-    github: joeyrobert/drawille-cr
-    branch: master
   tput:
     github: crystallabs/tput.cr
     version: ~> 1.0
@@ -21,6 +18,10 @@ dependencies:
     github: ralsina/markterm
   docopt:
     github: ralsina/docopt.cr
+  crimage:
+    github: naqvis/crimage
+  sixteen:
+    github: ralsina/sixteen
 
 crystal: ">= 1.14.0"
 

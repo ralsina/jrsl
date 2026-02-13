@@ -37,16 +37,14 @@ module Jrsl
     property title : String
     property content : String
     property image_path : String?
-    property image_position : String
-    property image_h_position : String
+    property image_position : String = "center"
+    property image_h_position : String = "left"
     property image_max_height : Int32?
     property rendered_image : Tuple(String, Int32)?
     property kitty_image : Tuple(String, Int32)?
 
     def initialize(@title : String, @content : String = "")
       @image_path = nil
-      @image_position = "center"
-      @image_h_position = "center"
       @image_max_height = nil
       @rendered_image = nil
       @kitty_image = nil
@@ -58,8 +56,8 @@ module Jrsl
 
     property title : String
     property image : String?
-    property image_position : String?
-    property image_h_position : String?
+    property image_position : String = "center"
+    property image_h_position : String = "left"
     property image_height : Int32?
   end
 
@@ -147,8 +145,8 @@ module Jrsl
       # Create slide and set image properties
       slide = Slide.new(title, content)
       slide.image_path = slide_metadata.image
-      slide.image_position = slide_metadata.image_position || "center"
-      slide.image_h_position = slide_metadata.image_h_position || "center"
+      slide.image_position = slide_metadata.image_position
+      slide.image_h_position = slide_metadata.image_h_position
       slide.image_max_height = slide_metadata.image_height
       slides << slide
     end
@@ -544,20 +542,20 @@ def main
                   # For ASCII, we can count line length
                   if kitty_img = current.kitty_image
                     # Kitty images are positioned by cursor, approximate centering
-                    (screen_width - 80) // 2  # rough approximation
+                    (screen_width - 80) // 2 # rough approximation
                   elsif rendered = current.rendered_image
                     rendered_str, _ = rendered
-                    max_line_len = rendered_str.split("\n").map(&.size).max? || 0
+                    max_line_len = rendered_str.split("\n").max_of?(&.size) || 0
                     (screen_width - max_line_len).clamp(0, screen_width)
                   else
                     0
                   end
                 else # "center" (default)
                   if kitty_img = current.kitty_image
-                    (screen_width - 80) // 2  # rough approximation for Kitty
+                    (screen_width - 80) // 2 # rough approximation for Kitty
                   elsif rendered = current.rendered_image
                     rendered_str, _ = rendered
-                    max_line_len = rendered_str.split("\n").map(&.size).max? || 0
+                    max_line_len = rendered_str.split("\n").max_of?(&.size) || 0
                     ((screen_width - max_line_len) // 2).clamp(0, screen_width)
                   else
                     (screen_width - 80) // 2
