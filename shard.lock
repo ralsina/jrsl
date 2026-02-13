@@ -1,6 +1,7 @@
+# NOTICE: This lockfile contains some overrides from shard.override.yml
 version: 2.0
 shards:
-  baked_file_system:
+  baked_file_system: # Overridden
     git: https://github.com/ralsina/baked_file_system.git
     version: 0.10.0+git.commit.beb373124c7a235cfb9cd94e36849d8168eaa04b
 
@@ -16,17 +17,17 @@ shards:
     git: https://github.com/crystallabs/crystallabs-helpers.cr.git
     version: 1.0.1
 
-  docopt:
+  docopt: # Overridden
     git: https://github.com/ralsina/docopt.cr.git
     version: 0.3.1
 
   markd:
     git: https://github.com/icyleaf/markd.git
-    version: 0.5.0
+    version: 0.5.0+git.commit.03cd4f5d6f4e56054502a6548b4c2ff92fb3dc20
 
   markterm:
     git: https://github.com/ralsina/markterm.git
-    version: 0.6.3
+    version: 0.7.0+git.commit.f5e0ce7302d0cf43fcc78c1a644b35ac0eaeaf08
 
   matrix:
     git: https://github.com/exilor/matrix.git
@@ -38,7 +39,7 @@ shards:
 
   sixteen:
     git: https://github.com/ralsina/sixteen.git
-    version: 0.7.0
+    version: 0.8.0
 
   stumpy_core:
     git: https://github.com/stumpycr/stumpy_core.git
@@ -48,6 +49,10 @@ shards:
     git: https://github.com/reiswindy/stumpy_jpeg.git
     version: 0.1.0+git.commit.714ad6c1f905cb503c53843cda8285f52592e2c2
 
+  tablo:
+    git: https://github.com/hutou/tablo.git
+    version: 1.0.2
+
   tartrazine:
     git: https://github.com/ralsina/tartrazine.git
     version: 0.20.1
@@ -55,6 +60,10 @@ shards:
   term-screen:
     git: https://github.com/crystal-term/screen.git
     version: 0.3.1
+
+  textseg:
+    git: https://github.com/naqvis/uni_text_seg.git
+    version: 0.1.3
 
   tput:
     git: https://github.com/crystallabs/tput.cr.git
@@ -67,4 +76,8 @@ shards:
   unibilium-shim:
     git: https://github.com/crystallabs/unibilium-shim.cr.git
     version: 1.1.0
+
+  uniwidth:
+    git: https://github.com/naqvis/uni_char_width.git
+    version: 0.1.3
 

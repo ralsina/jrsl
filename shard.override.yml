@@ -1,0 +1,5 @@
+dependencies:
+  docopt:
+    github: ralsina/docopt.cr
+  baked_file_system:
+    github: ralsina/baked_file_system

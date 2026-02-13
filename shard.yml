@@ -16,6 +16,7 @@ dependencies:
     github: reiswindy/stumpy_jpeg
   markterm:
     github: ralsina/markterm
+    branch: main
   docopt:
     github: ralsina/docopt.cr
   crimage:
