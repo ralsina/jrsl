@@ -7,7 +7,7 @@ require "sixteen"
 require "crimage"
 
 module Jrsl
-  VERSION = "0.1.0"
+  VERSION = "0.2.0"
 
   # Normalize accented characters to ASCII for figlet
   def self.normalize_for_figlet(text : String) : String

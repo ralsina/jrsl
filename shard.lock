@@ -20,10 +20,6 @@ shards:
     git: https://github.com/ralsina/docopt.cr.git
     version: 0.3.1
 
-  drawille-cr:
-    git: https://github.com/joeyrobert/drawille-cr.git
-    version: 0.2.0+git.commit.3f3a2be243f6edee5c1223b584d19db0f38d1073
-
   markd:
     git: https://github.com/icyleaf/markd.git
     version: 0.5.0
@@ -35,6 +31,10 @@ shards:
   matrix:
     git: https://github.com/exilor/matrix.git
     version: 0.1.0+git.commit.db74e62dcc0b65e548bf1a8eda65657310f57152
+
+  progress_bar:
+    git: https://github.com/mgomes/progress_bar.git
+    version: 1.0.1+git.commit.aa5ebab89d31167208387640db06d3964ec7922b
 
   sixteen:
     git: https://github.com/ralsina/sixteen.git
