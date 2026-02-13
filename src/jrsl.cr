@@ -573,12 +573,7 @@ def main
       if kitty_img = current.kitty_image
         kitty_str, img_height, _ = kitty_img
         if current.image_position == "top" || current.image_position == "center"
-          # Ensure cursor is at correct position before sending Kitty image
-          # Use cursor position report sequence to force cursor to known location
-          print "\e[#{current_y + 1};#{image_x}H"
-          STDOUT.flush
-
-          # Now send the Kitty image
+          # Already positioned at current_y by tput.cursor_pos
           print kitty_str
           STDOUT.flush
 
