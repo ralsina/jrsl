@@ -41,7 +41,7 @@ module Jrsl
     property image_h_position : String = "left"
     property image_max_height : Int32?
     property rendered_image : Tuple(String, Int32)?
-    property kitty_image : Tuple(String, Int32)?
+    property kitty_image : Tuple(String, Int32, Int32)?
 
     def initialize(@title : String, @content : String = "")
       @image_path = nil
@@ -242,7 +242,7 @@ module Jrsl
 
   # Render image using Kitty graphics protocol
   # Returns the escape sequence string to display the image
-  def self.render_image_kitty(path : String, max_width : Int32, max_height : Int32) : Tuple(String, Int32)?
+  def self.render_image_kitty(path : String, max_width : Int32, max_height : Int32) : Tuple(String, Int32, Int32)?
     image = load_image(path)
     return nil unless image
 
@@ -305,9 +305,10 @@ module Jrsl
       offset += chunk.size
     end
 
-    # Return terminal row height (round up)
+    # Return terminal row height (round up) and column width
     terminal_rows = (new_height.to_f64 / cell_pixel_height).ceil.to_i32
-    {control_parts.join, terminal_rows}
+    terminal_cols = (new_width.to_f64 / cell_pixel_width).ceil.to_i32
+    {control_parts.join, terminal_rows, terminal_cols}
   rescue e : Exception
     nil
   end
@@ -487,6 +488,7 @@ def main
       if use_kitty
         kitty_result = Jrsl.render_image_kitty(path, 119, max_h)
         if kitty_result
+          # kitty_result is now {string, rows, cols}
           slide.kitty_image = kitty_result
         else
           raise "Kitty render failed for '#{path}'"
@@ -537,12 +539,9 @@ def main
                 when "left"
                   0
                 when "right"
-                  # For Kitty, we need to know image width in cells
-                  # Approximate: assume image width in pixels / cell width
-                  # For ASCII, we can count line length
                   if kitty_img = current.kitty_image
-                    # Kitty images are positioned by cursor, approximate centering
-                    (screen_width - 80) // 2 # rough approximation
+                    _, _, img_cols = kitty_img
+                    (screen_width - img_cols).clamp(0, screen_width)
                   elsif rendered = current.rendered_image
                     rendered_str, _ = rendered
                     max_line_len = rendered_str.split("\n").max_of?(&.size) || 0
@@ -552,13 +551,14 @@ def main
                   end
                 else # "center" (default)
                   if kitty_img = current.kitty_image
-                    (screen_width - 80) // 2 # rough approximation for Kitty
+                    _, _, img_cols = kitty_img
+                    ((screen_width - img_cols) // 2).clamp(0, screen_width)
                   elsif rendered = current.rendered_image
                     rendered_str, _ = rendered
                     max_line_len = rendered_str.split("\n").max_of?(&.size) || 0
                     ((screen_width - max_line_len) // 2).clamp(0, screen_width)
                   else
-                    (screen_width - 80) // 2
+                    0
                   end
                 end
 
@@ -571,7 +571,7 @@ def main
 
       # Display image after content
       if kitty_img = current.kitty_image
-        kitty_str, img_height = kitty_img
+        kitty_str, img_height, _ = kitty_img
         if current.image_position == "top" || current.image_position == "center"
           # Ensure cursor is at correct position before sending Kitty image
           # Use cursor position report sequence to force cursor to known location
@@ -602,7 +602,7 @@ def main
 
       # Handle "bottom" image position
       if kitty_img = current.kitty_image
-        kitty_str, img_height = kitty_img
+        kitty_str, img_height, _ = kitty_img
         if current.image_position == "bottom"
           # Ensure cursor is at correct position before sending Kitty image
           bottom_y = tput.screen.height - img_height - 1
