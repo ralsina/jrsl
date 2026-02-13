@@ -50,7 +50,7 @@ module Jrsl
     property image_position : String = "center"
     property image_h_position : String = "left"
     property image_max_height : Int32?
-    property rendered_image : Tuple(String, Int32)?
+    property rendered_image : Tuple(String, Int32, Int32)?
     property kitty_image : Tuple(String, Int32, Int32)?
     property markdown_element : MarkdownElement?
 
@@ -177,8 +177,8 @@ module Jrsl
 
   # Pre-render an image to a string before TUI initialization
   # Uses half-block characters (▀) for 2x1 vertical resolution per cell
-  # Returns {rendered_string, line_count} or nil if loading fails
-  def self.render_image_to_string(path : String, max_width : Int32, max_height : Int32) : Tuple(String, Int32)?
+  # Returns {rendered_string, line_count, width_in_chars} or nil if loading fails
+  def self.render_image_to_string(path : String, max_width : Int32, max_height : Int32) : Tuple(String, Int32, Int32)?
     image = load_image(path)
     return nil unless image
 
@@ -247,7 +247,7 @@ module Jrsl
       output_lines << line
     end
 
-    {output_lines.join("\n"), output_lines.size}
+    {output_lines.join("\n"), output_lines.size, scaled_width.to_i32}
   rescue e : Exception
     nil
   end
@@ -583,8 +583,7 @@ def main
       if kitty_img = current.kitty_image
         _, img_rows, img_cols = kitty_img
       elsif rendered_img = current.rendered_image
-        rendered_str, img_rows = rendered_img
-        img_cols = rendered_str.split("\n").max_of?(&.size) || 0
+        rendered_str, img_rows, img_cols = rendered_img
       end
 
       # Calculate horizontal position for image
@@ -620,7 +619,7 @@ def main
           print " "
           STDOUT.flush
         elsif rendered_img = current.rendered_image
-          rendered_str, _ = rendered_img
+          rendered_str, _, _ = rendered_img
           rendered_str.split("\n").each_with_index do |line, line_y|
             tput.cursor_pos img_y + line_y, image_x
             tput.echo(line)
@@ -673,7 +672,7 @@ def main
           print " "
           STDOUT.flush
         elsif rendered_img = current.rendered_image
-          rendered_str, _ = rendered_img
+          rendered_str, _, _ = rendered_img
           rendered_str.split("\n").each_with_index do |line, line_y|
             tput.cursor_pos img_y + line_y, image_x
             tput.echo(line)

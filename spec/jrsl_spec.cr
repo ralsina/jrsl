@@ -1,7 +1,7 @@
 require "./spec_helper"
 require "yaml"
 
-# Inline the parsing logic for testing
+# Inline parsing logic for testing
 module Jrsl
   class Slide
     property title : String
@@ -234,22 +234,35 @@ describe Jrsl do
   end
 
   describe ".render_image_to_string" do
-    it "renders the actual presentation image without crashing" do
+    it "renders actual presentation image without crashing" do
       image_path = "#{__DIR__}/../charla/ralsina.jpg"
       result = Jrsl.render_image_to_string(image_path, 119, 14)
 
-      # Should return a tuple with rendered string and line count
+      # Should return a tuple with rendered string, line count, and width
       result.should_not be_nil
-      rendered, line_count = result.not_nil!
+      rendered, line_count, width = result.not_nil!
       rendered.should be_a(String)
       rendered.size.should be > 0
       line_count.should be > 0
       line_count.should be <= 14
+      width.should be > 0
+      width.should be <= 119
     end
 
     it "returns nil for non-existent image" do
       result = Jrsl.render_image_to_string("/nonexistent/image.jpg", 50, 10)
       result.should be_nil
+    end
+
+    it "returns correct width that doesn't include ANSI codes" do
+      image_path = "#{__DIR__}/../charla/ralsina.jpg"
+      result = Jrsl.render_image_to_string(image_path, 119, 14)
+
+      result.should_not be_nil
+      rendered, line_count, width = result.not_nil!
+
+      # Width should be much smaller than the string size (which includes ANSI codes)
+      width.should be < rendered.size
     end
   end
 end
