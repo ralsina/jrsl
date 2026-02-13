@@ -350,8 +350,13 @@ module Jrsl
       available_height = content_area_height - md_rows - gap
       available_height = 1 if available_height < 1
       available_height
+    elsif image_position == "center"
+      # Image centered - need md_rows below, and equal space above so midpoint is centered
+      available_height = content_area_height - (2 * md_rows) - (2 * gap)
+      available_height = 1 if available_height < 1
+      available_height
     else
-      # "top" or "center": image at top/center, markdown below
+      # "top": image at top, markdown below
       available_height = content_area_height - md_rows - gap
       available_height = 1 if available_height < 1
       available_height
@@ -653,10 +658,11 @@ def main
           end
         end
       elsif current.image_position == "center"
-        # Image centered vertically in content area, markdown below
-        img_y = content_area_start + (content_area_height - img_rows) // 2
-        img_y = content_area_start if img_rows > content_area_height # Don't go above start
-        md_y = img_y + img_rows + 1
+        # Image centered vertically in space above markdown
+        available_for_image = content_area_height - md_rows - 1
+        img_y = content_area_start + (available_for_image - img_rows) // 2
+        img_y = content_area_start if img_y < content_area_start
+        md_y = content_area_start + content_area_height - md_rows
 
         # Display image
         if kitty_img = current.kitty_image
