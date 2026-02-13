@@ -576,9 +576,11 @@ def main
 
       # Get markdown dimensions (0x0 if none)
       md_rows = 0
+      md_cols = 0
       md_lines = [] of String
       if md_element = current.markdown_element
         md_rows = md_element.rows
+        md_cols = md_element.cols
         md_lines = md_element.rendered.split("\n")
       end
 
@@ -620,103 +622,26 @@ def main
                   ((screen_width - img_cols) // 2).clamp(0, screen_width)
                 end
 
-      # Layout based on image_position
-      if current.image_position == "top"
-        # Image at top of content area, markdown below
+      # Layout based on horizontal position first
+      if current.image_h_position == "left" || current.image_h_position == "right"
+        # Side-by-side layout: image and markdown share vertical space
+        gap = 2 # Columns between image and markdown
+
+        if current.image_h_position == "left"
+          image_x = 0
+          md_x = img_cols + gap
+          md_max_width = screen_width - md_x
+        else # "right"
+          md_x = 0
+          md_max_width = screen_width - img_cols - gap
+          image_x = md_max_width + gap
+        end
+
+        # Both image and markdown start at content_area_start vertically
         img_y = content_area_start
-        md_y = img_y + img_rows + 1
-
-        # Display image
-        if kitty_img = current.kitty_image
-          kitty_str, _, _ = kitty_img
-          print "\e[#{img_y + 1};#{image_x}H"
-          STDOUT.flush
-          print kitty_str
-          STDOUT.flush
-          print " "
-          STDOUT.flush
-        elsif rendered_img = current.rendered_image
-          rendered_str, _, _ = rendered_img
-          rendered_str.split("\n").each_with_index do |line, line_y|
-            tput.cursor_pos img_y + line_y, image_x
-            tput.echo(line)
-          end
-        end
-
-        # Display markdown (truncated to fit remaining space)
-        available_md_height = content_area_height - img_rows - 1
-        available_md_height = 0 if available_md_height < 0
-        visible_md_rows = [md_rows, available_md_height].min
-        if visible_md_rows > 0 && md_element
-          start_row = y_offset
-          end_row = [start_row + visible_md_rows, md_lines.size].min
-          visible_lines = md_lines[start_row...end_row] || [] of String
-
-          visible_lines.each_with_index do |line, idx|
-            tput.cursor_pos md_y + idx, 0
-            tput.echo(line)
-          end
-        end
-      elsif current.image_position == "center"
-        # Image centered vertically in space above markdown
-        available_for_image = content_area_height - md_rows - 1
-        img_y = content_area_start + (available_for_image - img_rows) // 2
-        img_y = content_area_start if img_y < content_area_start
-        md_y = content_area_start + content_area_height - md_rows
-
-        # Display image
-        if kitty_img = current.kitty_image
-          kitty_str, _, _ = kitty_img
-          print "\e[#{img_y + 1};#{image_x}H"
-          STDOUT.flush
-          print kitty_str
-          STDOUT.flush
-          print " "
-          STDOUT.flush
-        elsif rendered_img = current.rendered_image
-          rendered_str, _, _ = rendered_img
-          rendered_str.split("\n").each_with_index do |line, line_y|
-            tput.cursor_pos img_y + line_y, image_x
-            tput.echo(line)
-          end
-        end
-
-        # Display markdown (truncated to fit remaining space)
-        available_md_height = content_area_start + content_area_height - md_y
-        available_md_height = 0 if available_md_height < 0
-        visible_md_rows = [md_rows, available_md_height].min
-        if visible_md_rows > 0 && md_element
-          start_row = y_offset
-          end_row = [start_row + visible_md_rows, md_lines.size].min
-          visible_lines = md_lines[start_row...end_row] || [] of String
-
-          visible_lines.each_with_index do |line, idx|
-            tput.cursor_pos md_y + idx, 0
-            tput.echo(line)
-          end
-        end
-      else # "bottom"
-        # Image at bottom of content area, markdown above
-        img_y = content_area_start + content_area_height - img_rows
-        img_y = content_area_start if img_rows > content_area_height # Don't go above start
-
-        # Display markdown above image
         md_y = content_area_start
-        available_md_height = [img_y - md_y, content_area_height].min
-        available_md_height = 0 if available_md_height < 0
-        visible_md_rows = [md_rows, available_md_height].min
-        if visible_md_rows > 0 && md_element
-          start_row = y_offset
-          end_row = [start_row + visible_md_rows, md_lines.size].min
-          visible_lines = md_lines[start_row...end_row] || [] of String
 
-          visible_lines.each_with_index do |line, idx|
-            tput.cursor_pos md_y + idx, 0
-            tput.echo(line)
-          end
-        end
-
-        # Display image at bottom
+        # Display image
         if kitty_img = current.kitty_image
           kitty_str, _, _ = kitty_img
           print "\e[#{img_y + 1};#{image_x}H"
@@ -730,6 +655,136 @@ def main
           rendered_str.split("\n").each_with_index do |line, line_y|
             tput.cursor_pos img_y + line_y, image_x
             tput.echo(line)
+          end
+        end
+
+        # Display markdown alongside image
+        visible_md_rows = [md_rows, content_area_height].min
+        if visible_md_rows > 0 && md_element
+          start_row = y_offset
+          end_row = [start_row + visible_md_rows, md_lines.size].min
+          visible_lines = md_lines[start_row...end_row] || [] of String
+
+          visible_lines.each_with_index do |line, idx|
+            tput.cursor_pos md_y + idx, md_x
+            tput.echo(line)
+          end
+        end
+      else
+        # Stacked layout (center): image and markdown stacked vertically
+        # Calculate horizontal position for markdown block
+        md_x = ((screen_width - md_cols) // 2).clamp(0, screen_width)
+
+        if current.image_position == "top"
+          # Image at top of content area, markdown below
+          img_y = content_area_start
+          md_y = img_y + img_rows + 1
+
+          # Display image
+          if kitty_img = current.kitty_image
+            kitty_str, _, _ = kitty_img
+            print "\e[#{img_y + 1};#{image_x}H"
+            STDOUT.flush
+            print kitty_str
+            STDOUT.flush
+            print " "
+            STDOUT.flush
+          elsif rendered_img = current.rendered_image
+            rendered_str, _, _ = rendered_img
+            rendered_str.split("\n").each_with_index do |line, line_y|
+              tput.cursor_pos img_y + line_y, image_x
+              tput.echo(line)
+            end
+          end
+
+          # Display markdown (truncated to fit remaining space)
+          available_md_height = content_area_height - img_rows - 1
+          available_md_height = 0 if available_md_height < 0
+          visible_md_rows = [md_rows, available_md_height].min
+          if visible_md_rows > 0 && md_element
+            start_row = y_offset
+            end_row = [start_row + visible_md_rows, md_lines.size].min
+            visible_lines = md_lines[start_row...end_row] || [] of String
+
+            visible_lines.each_with_index do |line, idx|
+              tput.cursor_pos md_y + idx, md_x
+              tput.echo(line)
+            end
+          end
+        elsif current.image_position == "center"
+          # Image centered vertically in space above markdown
+          available_for_image = content_area_height - md_rows - 1
+          img_y = content_area_start + (available_for_image - img_rows) // 2
+          img_y = content_area_start if img_y < content_area_start
+          md_y = content_area_start + content_area_height - md_rows
+
+          # Display image
+          if kitty_img = current.kitty_image
+            kitty_str, _, _ = kitty_img
+            print "\e[#{img_y + 1};#{image_x}H"
+            STDOUT.flush
+            print kitty_str
+            STDOUT.flush
+            print " "
+            STDOUT.flush
+          elsif rendered_img = current.rendered_image
+            rendered_str, _, _ = rendered_img
+            rendered_str.split("\n").each_with_index do |line, line_y|
+              tput.cursor_pos img_y + line_y, image_x
+              tput.echo(line)
+            end
+          end
+
+          # Display markdown centered horizontally
+          available_md_height = content_area_start + content_area_height - md_y
+          available_md_height = 0 if available_md_height < 0
+          visible_md_rows = [md_rows, available_md_height].min
+          if visible_md_rows > 0 && md_element
+            start_row = y_offset
+            end_row = [start_row + visible_md_rows, md_lines.size].min
+            visible_lines = md_lines[start_row...end_row] || [] of String
+
+            visible_lines.each_with_index do |line, idx|
+              tput.cursor_pos md_y + idx, md_x
+              tput.echo(line)
+            end
+          end
+        else # "bottom"
+          # Image at bottom of content area, markdown above
+          img_y = content_area_start + content_area_height - img_rows
+          img_y = content_area_start if img_rows > content_area_height
+
+          # Display markdown above image
+          md_y = content_area_start
+          available_md_height = [img_y - md_y, content_area_height].min
+          available_md_height = 0 if available_md_height < 0
+          visible_md_rows = [md_rows, available_md_height].min
+          if visible_md_rows > 0 && md_element
+            start_row = y_offset
+            end_row = [start_row + visible_md_rows, md_lines.size].min
+            visible_lines = md_lines[start_row...end_row] || [] of String
+
+            visible_lines.each_with_index do |line, idx|
+              tput.cursor_pos md_y + idx, md_x
+              tput.echo(line)
+            end
+          end
+
+          # Display image at bottom
+          if kitty_img = current.kitty_image
+            kitty_str, _, _ = kitty_img
+            print "\e[#{img_y + 1};#{image_x}H"
+            STDOUT.flush
+            print kitty_str
+            STDOUT.flush
+            print " "
+            STDOUT.flush
+          elsif rendered_img = current.rendered_image
+            rendered_str, _, _ = rendered_img
+            rendered_str.split("\n").each_with_index do |line, line_y|
+              tput.cursor_pos img_y + line_y, image_x
+              tput.echo(line)
+            end
           end
         end
       end
