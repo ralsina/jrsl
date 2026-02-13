@@ -33,6 +33,12 @@ module Jrsl
     result
   end
 
+  def self.query_cell_size : Tuple(Int16, Int16)
+    thing = LibC::Winsize.new
+    LibC.ioctl(STDOUT.fd, LibC::TIOCGWINSZ, pointerof(thing))
+    {(thing.ws_ypixel / thing.ws_row).to_i16, (thing.ws_xpixel / thing.ws_col).to_i16}
+  end
+
   class MarkdownElement
     property markdown_text : String
     property rendered : String
@@ -267,9 +273,8 @@ module Jrsl
 
     # Calculate scale to fit within max dimensions
     # max_width is terminal cells, max_height is terminal rows
-    # Typical terminal cell is roughly 10x20 pixels (width x height)
-    cell_pixel_width = 10
-    cell_pixel_height = 20
+
+    cell_pixel_height, cell_pixel_width = query_cell_size()
 
     target_pixel_width = max_width * cell_pixel_width
     target_pixel_height = max_height * cell_pixel_height
@@ -334,6 +339,23 @@ module Jrsl
     cols = lines.max_of?(&.size) || 0
 
     MarkdownElement.new(markdown, rendered, rows, cols)
+  end
+
+  # Calculate available height for image based on markdown size and position
+  def self.calculate_image_max_height(md_rows : Int32, content_area_height : Int32, image_position : String) : Int32
+    gap = 1 # One line gap between image and markdown
+
+    if image_position == "bottom"
+      # Markdown goes at top, image below
+      available_height = content_area_height - md_rows - gap
+      available_height = 1 if available_height < 1
+      available_height
+    else
+      # "top" or "center": image at top/center, markdown below
+      available_height = content_area_height - md_rows - gap
+      available_height = 1 if available_height < 1
+      available_height
+    end
   end
 end
 
@@ -402,11 +424,11 @@ def build_footer(metadata : Jrsl::PresentationMetadata, slide_num : Int32, total
     parts << author
   end
 
-  footer_text = parts.join(" 💗 ")
-  footer_text += " 💗 " unless footer_text.empty? || slide_num < 0
+  footer_text = parts.join(" / ")
+  footer_text += " / " unless footer_text.empty? || slide_num < 0
   footer_text += "#{slide_num + 1}/#{total_slides}" if slide_num >= 0
 
-  footer_text = footer_text.center(width - 2)
+  footer_text = footer_text.center(width)
 
   # Use base16 colors: base01 for background, base05 for foreground
   if theme
@@ -505,33 +527,11 @@ def main
   # Check if kitty mode is enabled
   use_kitty = args["--kitty"] == true
 
-  # Pre-render all images and markdown before entering TUI
+  # Pre-render markdown before entering TUI
+  # Images will be rendered on-the-fly based on actual screen dimensions
   slides.each do |slide|
-    # Pre-render markdown content
     unless slide.content.empty?
       slide.markdown_element = Jrsl.render_markdown_to_element(slide.content, 119)
-    end
-
-    # Pre-render images
-    if path = slide.image_path
-      # Default max height if not specified
-      max_h = slide.image_max_height || 20
-      if use_kitty
-        kitty_result = Jrsl.render_image_kitty(path, 119, max_h)
-        if kitty_result
-          # kitty_result is now {string, rows, cols}
-          slide.kitty_image = kitty_result
-        else
-          raise "Kitty render failed for '#{path}'"
-        end
-      else
-        ascii_result = Jrsl.render_image_to_string(path, 119, max_h)
-        if ascii_result
-          slide.rendered_image = ascii_result
-        else
-          raise "ASCII render failed for '#{path}'"
-        end
-      end
     end
   end
 
@@ -561,7 +561,7 @@ def main
       # Print title if present
       unless current.title.empty?
         print_figlet(tput, current.title, 0, current_y, theme)
-        current_y += 5
+        current_y += 3
       end
 
       # Content area dimensions
@@ -577,13 +577,32 @@ def main
         md_lines = md_element.rendered.split("\n")
       end
 
-      # Get image dimensions
+      # Render image with appropriate size based on markdown and screen dimensions
       img_rows = 0
       img_cols = 0
-      if kitty_img = current.kitty_image
-        _, img_rows, img_cols = kitty_img
-      elsif rendered_img = current.rendered_image
-        rendered_str, img_rows, img_cols = rendered_img
+      if path = current.image_path
+        # Calculate max height for image based on available space
+        calculated_max_h = Jrsl.calculate_image_max_height(md_rows, content_area_height, current.image_position)
+        # Use the smaller of calculated height or user-specified height
+        max_h = if user_h = current.image_max_height
+                     [user_h, calculated_max_h].min
+                   else
+                     calculated_max_h
+                   end
+
+        if use_kitty
+          kitty_result = Jrsl.render_image_kitty(path, 119, max_h)
+          if kitty_result
+            _, img_rows, img_cols = kitty_result
+            current.kitty_image = kitty_result
+          end
+        else
+          ascii_result = Jrsl.render_image_to_string(path, 119, max_h)
+          if ascii_result
+            rendered_str, img_rows, img_cols = ascii_result
+            current.rendered_image = ascii_result
+          end
+        end
       end
 
       # Calculate horizontal position for image
@@ -597,21 +616,14 @@ def main
                 end
 
       # Layout based on image_position
-      if current.image_position == "top" || current.image_position == "center"
-        # Image goes at top of content area, markdown below
+      if current.image_position == "top"
+        # Image at top of content area, markdown below
         img_y = content_area_start
-
-        # Calculate available space for markdown (below image + 1 line gap)
-        available_md_height = content_area_height - img_rows - 1
-        available_md_height = 0 if available_md_height < 0
-
-        # Markdown goes below image
         md_y = img_y + img_rows + 1
 
         # Display image
         if kitty_img = current.kitty_image
           kitty_str, _, _ = kitty_img
-          # Move cursor to image position
           print "\e[#{img_y + 1};#{image_x}H"
           STDOUT.flush
           print kitty_str
@@ -626,10 +638,48 @@ def main
           end
         end
 
-        # Display markdown (truncated to fit)
+        # Display markdown (truncated to fit remaining space)
+        available_md_height = content_area_height - img_rows - 1
+        available_md_height = 0 if available_md_height < 0
         visible_md_rows = [md_rows, available_md_height].min
         if visible_md_rows > 0 && md_element
-          # Apply y_offset for scrolling
+          start_row = y_offset
+          end_row = [start_row + visible_md_rows, md_lines.size].min
+          visible_lines = md_lines[start_row...end_row] || [] of String
+
+          visible_lines.each_with_index do |line, idx|
+            tput.cursor_pos md_y + idx, 0
+            tput.echo(line)
+          end
+        end
+      elsif current.image_position == "center"
+        # Image centered vertically in content area, markdown below
+        img_y = content_area_start + (content_area_height - img_rows) // 2
+        img_y = content_area_start if img_rows > content_area_height # Don't go above start
+        md_y = img_y + img_rows + 1
+
+        # Display image
+        if kitty_img = current.kitty_image
+          kitty_str, _, _ = kitty_img
+          print "\e[#{img_y + 1};#{image_x}H"
+          STDOUT.flush
+          print kitty_str
+          STDOUT.flush
+          print " "
+          STDOUT.flush
+        elsif rendered_img = current.rendered_image
+          rendered_str, _, _ = rendered_img
+          rendered_str.split("\n").each_with_index do |line, line_y|
+            tput.cursor_pos img_y + line_y, image_x
+            tput.echo(line)
+          end
+        end
+
+        # Display markdown (truncated to fit remaining space)
+        available_md_height = content_area_start + content_area_height - md_y
+        available_md_height = 0 if available_md_height < 0
+        visible_md_rows = [md_rows, available_md_height].min
+        if visible_md_rows > 0 && md_element
           start_row = y_offset
           end_row = [start_row + visible_md_rows, md_lines.size].min
           visible_lines = md_lines[start_row...end_row] || [] of String
@@ -640,18 +690,16 @@ def main
           end
         end
       else # "bottom"
-        # Markdown goes at top of content area, image below
+        # Image at bottom of content area, markdown above
+        img_y = content_area_start + content_area_height - img_rows
+        img_y = content_area_start if img_rows > content_area_height # Don't go above start
+
+        # Display markdown above image
         md_y = content_area_start
-
-        # Calculate available space for image (below markdown)
-        used_md_height = [md_rows, content_area_height].min
-
-        img_y = md_y + used_md_height + 1
-
-        # Display markdown (truncated to fit content area)
-        visible_md_rows = [md_rows, content_area_height].min
+        available_md_height = [img_y - md_y, content_area_height].min
+        available_md_height = 0 if available_md_height < 0
+        visible_md_rows = [md_rows, available_md_height].min
         if visible_md_rows > 0 && md_element
-          # Apply y_offset for scrolling
           start_row = y_offset
           end_row = [start_row + visible_md_rows, md_lines.size].min
           visible_lines = md_lines[start_row...end_row] || [] of String
@@ -662,7 +710,7 @@ def main
           end
         end
 
-        # Display image below markdown
+        # Display image at bottom
         if kitty_img = current.kitty_image
           kitty_str, _, _ = kitty_img
           print "\e[#{img_y + 1};#{image_x}H"
