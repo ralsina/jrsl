@@ -46,6 +46,15 @@ title: Carreras
 * Les cuento la mía rapidito
 * La imposibilidad del consejo
 ---
+title: Demo Image
+image: ralsina.jpg
+image_position: center
+image_height: 15
+---
+* This is a demo image to test native image rendering
+* Images are displayed using Braille characters via drawille-cr
+* Supporting PNG, JPEG, and other formats via crimage
+---
 title: El salmón 
 ---
 * Un temazo de Calamaro
@@ -70,4 +79,12 @@ title: Filosofía Libre y de Código Abierto
 title: Gracias
 ---
 * ¡Gracias!
+---
+title: Test Image + Text
+image: ralsina.jpg
+image_position: center
+image_height: 15
+---
+* This slide has both image and markdown content
+* To test if both display correctly together
 ---
