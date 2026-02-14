@@ -95,6 +95,7 @@ module Jrsl
     end
   end
 
+  # ameba:disable Metrics/CyclomaticComplexity
   def self.parse_slides(content : String) : Tuple(Array(Slide), PresentationMetadata)
     slides = [] of Slide
     metadata = PresentationMetadata.new
@@ -453,6 +454,7 @@ def build_footer(metadata : Jrsl::PresentationMetadata, slide_num : Int32, total
   footer_text.colorize(fg_rgb.colorize).back(bg_rgb.colorize)
 end
 
+# ameba:disable Metrics/CyclomaticComplexity
 def main
   doc = <<-DOC
   JRSL - Terminal-based presentation program
@@ -489,12 +491,6 @@ def main
     exit 0
   end
 
-  slides_file = if args["<file>"].is_a?(String)
-                  args["<file>"].as(String)
-                else
-                  "charla/charla.md"
-                end
-
   # Get theme
   theme_name = if args["-t"].is_a?(String)
                  args["-t"].as(String).downcase
@@ -523,9 +519,6 @@ def main
                 else
                   "charla/charla.md"
                 end
-
-  # Get the directory containing the presentation file
-  presentation_dir = File.dirname(slides_file)
 
   slides, metadata = if File.exists?(slides_file)
                        Jrsl.parse_slides(File.read(slides_file))
@@ -602,10 +595,10 @@ def main
         calculated_max_h = Jrsl.calculate_image_max_height(md_rows, content_area_height, current.image_position, current.image_h_position)
         # Use the smaller of calculated height or user-specified height
         max_h = if user_h = current.image_max_height
-                     [user_h, calculated_max_h].min
-                   else
-                     calculated_max_h
-                   end
+                  [user_h, calculated_max_h].min
+                else
+                  calculated_max_h
+                end
 
         if use_kitty
           kitty_result = Jrsl.render_image_kitty(path, 119, max_h)
