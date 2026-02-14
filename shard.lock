@@ -27,7 +27,7 @@ shards:
 
   markterm:
     git: https://github.com/ralsina/markterm.git
-    version: 0.7.0+git.commit.f5e0ce7302d0cf43fcc78c1a644b35ac0eaeaf08
+    version: 0.8.0
 
   matrix:
     git: https://github.com/exilor/matrix.git

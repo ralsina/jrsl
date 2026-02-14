@@ -332,7 +332,7 @@ module Jrsl
 
   # Render markdown to a MarkdownElement with measured dimensions
   def self.render_markdown_to_element(markdown : String, max_width : Int32) : MarkdownElement
-    rendered = Markd.to_term(markdown)
+    rendered = Markd.to_term(markdown, max_width: max_width)
     lines = rendered.split("\n")
 
     rows = lines.size
@@ -534,9 +534,13 @@ def main
 
   # Pre-render markdown before entering TUI
   # Images will be rendered on-the-fly based on actual screen dimensions
+  # Markdown width is half screen width for side-by-side layouts
+  terminal_size = Term::Screen.size || {24, 80}
+  _, terminal_width = terminal_size
+  md_width = terminal_width // 2 - 2 # Half screen minus gap
   slides.each do |slide|
     unless slide.content.empty?
-      slide.markdown_element = Jrsl.render_markdown_to_element(slide.content, 119)
+      slide.markdown_element = Jrsl.render_markdown_to_element(slide.content, md_width)
     end
   end
 
