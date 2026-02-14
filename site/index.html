@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>JRSL - Terminal-based Presentations</title>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link
+            href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Quicksand:wght@400;500;600;700&display=swap"
+            rel="stylesheet"
+        />
+        <link
+            rel="stylesheet"
+            href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css"
+        />
+        <style>
+            :root {
+                --font-family: "Quicksand", sans-serif !important;
+            }
+            body {
+                font-family: "Quicksand", sans-serif !important;
+            }
+            h1,
+            h2,
+            h3,
+            h4,
+            h5,
+            h6 {
+                font-family: "Quicksand", sans-serif !important;
+            }
+            code,
+            pre {
+                font-family: "JetBrains Mono", monospace !important;
+            }
+            .hero {
+                text-align: center;
+                padding: 4rem 2rem;
+                background: linear-gradient(
+                    135deg,
+                    #1a1a2e 0%,
+                    #16213e 50%,
+                    #0f3460 100%
+                );
+                border-radius: 1rem;
+                margin-bottom: 2rem;
+            }
+            .hero h1 {
+                font-size: 4rem;
+                margin-bottom: 0.5rem;
+                background: linear-gradient(90deg, #00d9ff, #00ff88);
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                background-clip: text;
+            }
+            .hero .tagline {
+                font-size: 1.25rem;
+                opacity: 0.9;
+                margin-bottom: 2rem;
+                color: #e0e0e0;
+            }
+            .features {
+                margin: 3rem 0;
+            }
+            .feature-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+                gap: 1.5rem;
+                margin-top: 2rem;
+            }
+            .feature-card {
+                padding: 1.5rem;
+                border-radius: 0.75rem;
+                background: linear-gradient(145deg, #1e2a3a 0%, #15202b 100%);
+                border: 1px solid #2d3748;
+                transition:
+                    transform 0.2s ease,
+                    box-shadow 0.2s ease;
+            }
+            .feature-card:hover {
+                transform: translateY(-4px);
+                box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+            }
+            .feature-card h3 {
+                margin-bottom: 0.5rem;
+                color: #00d9ff;
+            }
+            .feature-card p {
+                margin-bottom: 0;
+                opacity: 0.85;
+                color: #b0b0b0;
+            }
+            .code-block {
+                background: #0d1117;
+                padding: 1.5rem;
+                border-radius: 0.75rem;
+                overflow-x: auto;
+                width: 100%;
+                box-sizing: border-box;
+                border: 1px solid #30363d;
+            }
+            .code-block code {
+                background: none;
+                padding: 0;
+                color: #c9d1d9;
+            }
+            .cta-buttons {
+                display: flex;
+                gap: 1rem;
+                justify-content: center;
+                flex-wrap: wrap;
+            }
+            .cta-buttons a {
+                text-decoration: none;
+            }
+            footer {
+                text-align: center;
+                opacity: 0.7;
+                margin-top: 3rem;
+            }
+        </style>
+    </head>
+    <body>
+        <main class="container">
+            <section class="hero">
+                <h1>JRSL</h1>
+                <p class="tagline">
+                    Beautiful terminal-based presentations in Markdown
+                </p>
+                <script
+                    src="https://asciinema.org/a/6aBmt2kaQyKWH5mD.js"
+                    id="asciicast-6aBmt2kaQyKWH5mD"
+                    async="true"
+                ></script>
+                <div class="cta-buttons">
+                    <a
+                        href="https://github.com/ralsina/jrsl"
+                        role="button"
+                        target="_blank"
+                        >View on GitHub</a
+                    >
+                    <a href="#getting-started" role="button" class="secondary"
+                        >Get Started</a
+                    >
+                </div>
+            </section>
+
+            <section class="features">
+                <h2>Features</h2>
+                <div class="feature-grid">
+                    <article class="feature-card">
+                        <h3>Markdown Slides</h3>
+                        <p>
+                            Write your presentations in familiar Markdown syntax
+                            with YAML metadata for slide configuration.
+                        </p>
+                    </article>
+                    <article class="feature-card">
+                        <h3>ASCII Art Titles</h3>
+                        <p>
+                            Automatic figlet-powered ASCII art titles make your
+                            slides stand out in any terminal.
+                        </p>
+                    </article>
+                    <article class="feature-card">
+                        <h3>Image Support</h3>
+                        <p>
+                            Display images using ASCII art or the Kitty graphics
+                            protocol for high-quality rendering.
+                        </p>
+                    </article>
+                    <article class="feature-card">
+                        <h3>Flexible Layouts</h3>
+                        <p>
+                            Position images top, center, or bottom. Side-by-side
+                            layouts for image and text combinations.
+                        </p>
+                    </article>
+                    <article class="feature-card">
+                        <h3>Theme Support</h3>
+                        <p>
+                            Base16 color themes let you match your presentation
+                            to your terminal and personal style.
+                        </p>
+                    </article>
+                    <article class="feature-card">
+                        <h3>Keyboard Navigation</h3>
+                        <p>
+                            Simple arrow key navigation with scroll support for
+                            long content. Press q to quit.
+                        </p>
+                    </article>
+                </div>
+            </section>
+
+            <section id="getting-started">
+                <h2>Getting Started</h2>
+                <p>Install and run JRSL in seconds:</p>
+                <div class="code-block">
+                    <code>
+                        <pre>
+# Clone the repository
+git clone https://github.com/ralsina/jrsl.git
+cd jrsl
+
+# Install dependencies and build
+shards install
+shards build
+
+# Run your first presentation
+./bin/jrsl charla/jrsl-demo.md</pre
+                        >
+                    </code>
+                </div>
+            </section>
+
+            <section>
+                <h2>Usage</h2>
+                <div class="code-block">
+                    <code>
+                        <pre>
+jrsl [-t &lt;theme&gt;] [--kitty] [&lt;file&gt;]
+
+Options:
+  -t &lt;theme&gt;      Color theme to use (base16 themes)
+  --kitty         Use Kitty graphics protocol for images
+  --list-themes   List available color themes
+
+Navigation:
+  Left/Right      Previous/Next slide
+  Up/Down         Scroll long content
+  q               Quit</pre
+                        >
+                    </code>
+                </div>
+            </section>
+
+            <section>
+                <h2>Slide Example</h2>
+                <div class="code-block">
+                    <code>
+                        <pre>
+---
+title: My Slide
+image: screenshot.png
+image_position: center
+image_h_position: left
+---
+This is **markdown** content.
+
+- Bullet points
+- Work great
+- With images</pre
+                        >
+                    </code>
+                </div>
+            </section>
+
+            <footer>
+                <p>
+                    JRSL is open source software by Roberto Alsina. Licensed
+                    under MIT.
+                </p>
+            </footer>
+        </main>
+    </body>
+</html>
