@@ -342,9 +342,15 @@ module Jrsl
   end
 
   # Calculate available height for image based on markdown size and position
-  def self.calculate_image_max_height(md_rows : Int32, content_area_height : Int32, image_position : String) : Int32
+  def self.calculate_image_max_height(md_rows : Int32, content_area_height : Int32, image_position : String, image_h_position : String) : Int32
     gap = 1 # One line gap between image and markdown
 
+    # Side-by-side layouts: image uses full height
+    if image_h_position == "left" || image_h_position == "right"
+      return content_area_height
+    end
+
+    # Stacked layouts: reserve space for markdown
     if image_position == "bottom"
       # Markdown goes at top, image below
       available_height = content_area_height - md_rows - gap
@@ -593,7 +599,7 @@ def main
       img_cols = 0
       if path = current.image_path
         # Calculate max height for image based on available space
-        calculated_max_h = Jrsl.calculate_image_max_height(md_rows, content_area_height, current.image_position)
+        calculated_max_h = Jrsl.calculate_image_max_height(md_rows, content_area_height, current.image_position, current.image_h_position)
         # Use the smaller of calculated height or user-specified height
         max_h = if user_h = current.image_max_height
                      [user_h, calculated_max_h].min
