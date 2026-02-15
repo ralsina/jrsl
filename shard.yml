@@ -7,11 +7,12 @@ authors:
 targets:
   jrsl:
     main: src/main.cr
+  jrsl-termisu:
+    main: src/jrsl-termisu.cr
 
 dependencies:
-  tput:
-    github: crystallabs/tput.cr
-    version: ~> 1.0
+  termisu:
+    github: omarluq/termisu
   stumpy_jpeg:
     github: reiswindy/stumpy_jpeg
   markterm:

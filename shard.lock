@@ -13,10 +13,6 @@ shards:
     git: https://github.com/naqvis/crimage.git
     version: 1.0.4+git.commit.b65f67df27f4cb8807a34d94a90dfd4162acf45a
 
-  crystallabs-helpers:
-    git: https://github.com/crystallabs/crystallabs-helpers.cr.git
-    version: 1.0.1
-
   docopt: # Overridden
     git: https://github.com/ralsina/docopt.cr.git
     version: 0.3.1
@@ -61,21 +57,13 @@ shards:
     git: https://github.com/crystal-term/screen.git
     version: 0.3.1
 
+  termisu:
+    git: https://github.com/omarluq/termisu.git
+    version: 0.3.1
+
   textseg:
     git: https://github.com/naqvis/uni_text_seg.git
     version: 0.1.3
-
-  tput:
-    git: https://github.com/crystallabs/tput.cr.git
-    version: 1.0.8
-
-  unibilium:
-    git: https://github.com/crystallabs/unibilium.cr.git
-    version: 1.1.2
-
-  unibilium-shim:
-    git: https://github.com/crystallabs/unibilium-shim.cr.git
-    version: 1.1.0
 
   uniwidth:
     git: https://github.com/naqvis/uni_char_width.git
