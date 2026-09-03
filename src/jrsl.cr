@@ -395,10 +395,21 @@ def print_md(tput, markdown, x, y, h, theme, theme_name, y_offset = 0)
   {lines, y}
 end
 
-def print_figlet(tput, text, x, y, theme)
+def figlet_lines(text : String) : Array(String)?
   normalized_text = Jrsl.normalize_for_figlet(text)
-  output = `figlet -f smbraille.tlf #{normalized_text}`
-  lines = output.split("\n").map(&.rstrip).reject &.empty?
+  output = IO::Memory.new
+  process = Process.new("figlet", ["-f", "smbraille.tlf", normalized_text], output: output)
+  status = process.wait
+  return nil unless status.success?
+
+  output.rewind.gets_to_end.split("\n").map(&.rstrip).reject &.empty?
+rescue e : File::NotFoundError
+  nil
+end
+
+def print_figlet(tput, text, x, y, theme)
+  # Fall back to the plain title if figlet is missing or fails
+  lines = figlet_lines(text) || [text]
 
   # Find the maximum line length
   max_length = lines.max_of &.size
