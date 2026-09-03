@@ -309,8 +309,7 @@ describe Jrsl do
       result = Jrsl.render_image_to_string(image_path, 119, 14)
 
       # Should return a tuple with rendered string, line count, and width
-      result.should_not be_nil
-      rendered, line_count, width = result.not_nil!
+      rendered, line_count, width = result || fail("expected a rendered image")
       rendered.should be_a(String)
       rendered.size.should be > 0
       line_count.should be > 0
@@ -328,8 +327,7 @@ describe Jrsl do
       image_path = "#{__DIR__}/../charla/ralsina.jpg"
       result = Jrsl.render_image_to_string(image_path, 119, 14)
 
-      result.should_not be_nil
-      rendered, line_count, width = result.not_nil!
+      rendered, line_count, width = result || fail("expected a rendered image")
 
       # Width should be much smaller than the string size (which includes ANSI codes)
       width.should be < rendered.size
