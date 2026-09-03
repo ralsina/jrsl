@@ -147,13 +147,43 @@ module Jrsl
     {SlideMetadata.from_yaml(yaml_lines.join("\n")), i}
   end
 
+  # Return "```" or "~~~" when the line opens a fenced code block: at least
+  # 3 marker characters, optionally indented, optionally followed by an
+  # info string (CommonMark allows no info string on closing fences)
+  def self.fence_open_marker(line : String) : String?
+    stripped = line.lstrip
+    return "```" if stripped.starts_with?("```")
+    return "~~~" if stripped.starts_with?("~~~")
+    nil
+  end
+
+  # Return "```" or "~~~" when the line consists solely of fence marker
+  # characters, i.e. it can close a fenced code block
+  def self.fence_close_marker(line : String) : String?
+    stripped = line.strip
+    return "```" if stripped.size >= 3 && stripped.chars.all? { |character| character == '`' }
+    return "~~~" if stripped.size >= 3 && stripped.chars.all? { |character| character == '~' }
+    nil
+  end
+
   # Read the slide content (markdown) lines starting at index i, until the
-  # next "---" delimiter or end of file.
+  # next "---" delimiter or end of file. "---" lines inside fenced code
+  # blocks do not count as delimiters.
   # Returns the content lines and the index of the delimiter (or lines.size).
   def self.read_slide_content(lines : Array(String), i : Int32) : Tuple(Array(String), Int32)
     content_lines = [] of String
-    while i < lines.size && lines[i] != "---"
-      content_lines << lines[i]
+    open_fence : String? = nil
+    while i < lines.size
+      line = lines[i]
+      if fence = open_fence
+        content_lines << line
+        open_fence = nil if fence_close_marker(line) == fence
+      elsif line == "---"
+        break
+      else
+        content_lines << line
+        open_fence = fence_open_marker(line)
+      end
       i += 1
     end
     {content_lines, i}

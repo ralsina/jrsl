@@ -114,6 +114,105 @@ describe Jrsl do
       metadata.location.should eq("Santa Fe")
     end
 
+    it "keeps --- inside fenced code blocks within the same slide" do
+      content = <<-YAML
+        ---
+        title: Talk
+        ---
+        title: Code Slide
+        ---
+        ```crystal
+        if a > b
+          puts "bigger"
+        end
+        ---
+        this is still the slide
+        ```
+        ---
+        title: Next Slide
+        ---
+        After
+        YAML
+
+      slides, _metadata = Jrsl.parse_slides(content)
+
+      slides.size.should eq(2)
+      slides[0].content.should eq(<<-CONTENT)
+        ```crystal
+        if a > b
+          puts "bigger"
+        end
+        ---
+        this is still the slide
+        ```
+
+        CONTENT
+      slides[1].title.should eq("Next Slide")
+    end
+
+    it "supports tilde fences too" do
+      content = <<-YAML
+        ---
+        title: Talk
+        ---
+        title: Tilde Slide
+        ---
+        ~~~
+        text with ---
+        inside
+        ~~~
+        ---
+        title: Next
+        ---
+        After
+        YAML
+
+      slides, _metadata = Jrsl.parse_slides(content)
+
+      slides.size.should eq(2)
+      slides[0].content.should contain("text with ---")
+      slides[1].title.should eq("Next")
+    end
+
+    it "splits on --- again after a fence closes" do
+      content = <<-YAML
+        ---
+        title: Talk
+        ---
+        title: One
+        ---
+        ```
+        fenced
+        ```
+        ---
+        title: Two
+        ---
+        plain text
+        YAML
+
+      slides, _metadata = Jrsl.parse_slides(content)
+
+      slides.size.should eq(2)
+      slides[0].content.should eq("```\nfenced\n```\n")
+      slides[1].content.should eq("plain text\n")
+    end
+
+    it "treats non-fence backtick lines as content" do
+      content = <<-YAML
+        ---
+        title: Talk
+        ---
+        title: Inline
+        ---
+        inline `code` and --- text
+        YAML
+
+      slides, _metadata = Jrsl.parse_slides(content)
+
+      slides.size.should eq(1)
+      slides[0].content.should eq("inline `code` and --- text\n")
+    end
+
     it "parses image metadata with position and height" do
       content = <<-YAML
         ---
