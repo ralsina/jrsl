@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-JRSL is a terminal-based presentation program written in Crystal. It displays presentations from the `charla/` directory with markdown content, ASCII art titles (via figlet), and optional images (via timg).
+JRSL is a terminal-based presentation program written in Crystal. It displays presentations from markdown files with braille ASCII art titles (via figlet), terminal-rendered markdown, and images (rendered in-process as half-block characters, or via the Kitty graphics protocol).
 
 ## Build and Development Commands
 
@@ -19,42 +19,52 @@ JRSL is a terminal-based presentation program written in Crystal. It displays pr
 ### Linting
 - `ameba` - Run the linter
 - `ameba --fix` - Auto-fix linting issues (preferred method)
+- `crystal tool format` - Format the source
 
 ### Static Builds
 - `./build_static.sh` - Build static binaries using Docker (AMD64/ARM64)
 
 ## Code Structure
 
-### Entry Point
-- `src/jrsl.cr` - Single-file application containing all main logic
+Everything lives in `src/jrsl.cr`:
 
-### Key Functions (in src/jrsl.cr)
-- `print_md` - Renders markdown content using Markd.to_term
-- `print_figlet` - Displays ASCII art titles using figlet (smbraille font)
-- `print_footer` - Shows presentation footer with title and navigation hints
-- `print_image` - Displays images using timg
-- `main` - Main application loop with keyboard handling
+### Parsing (in the `Jrsl` module)
+- `parse_slides` - Entry point: splits a presentation file into `Slide` objects plus `PresentationMetadata`
+- `parse_global_metadata` - Reads the optional first YAML block
+- `parse_slide_blocks` / `read_slide_metadata` / `read_slide_content` - Read the alternating slide metadata (YAML) / content (markdown) blocks; `---` inside fenced code blocks does not split slides
+- `SlideMetadata`, `PresentationMetadata` - YAML::Serializable metadata models
+
+### Rendering helpers (in the `Jrsl` module)
+- `render_markdown_to_element` - Pre-renders markdown via `Markd.to_term` into a `MarkdownElement` with measured rows/cols
+- `render_image_to_string` - Renders an image as colored half-block characters (2 pixels per cell)
+- `render_image_kitty` - Encodes an image as a chunked Kitty graphics protocol escape sequence
+- `calculate_image_max_height`, `side_by_side_layout`, `stacked_layout`, `image_x_position`, `center_x` - Pure layout math (unit-tested)
+
+### Drawing and app flow (top-level defs)
+- `figlet_lines` / `print_figlet` - Braille ASCII art titles via `Process.run("figlet", ...)`
+- `build_footer` - Footer with event/location/author and slide counter
+- `draw_image` / `draw_markdown` - Draw one slide's image and markdown at given coordinates
+- `render_slide` - Computes layout for one slide and draws it
+- `read_action` / `apply_action` - Keyboard handling (`InputAction` enum): arrows navigate/scroll, `q` quits
+- `main` - CLI (docopt), setup, main loop
 
 ### Dependencies (from shard.yml)
-- `drawille-cr` - Terminal graphics
 - `tput` - Terminal control (keyboard input, screen management)
-- `stumpy_jpeg` - JPEG image processing
-- `markterm` - Terminal markdown rendering (maintainer's fork)
+- `markterm`/`markd` - Terminal markdown rendering (maintainer's fork)
+- `crimage` - Image loading/resizing (has its own JPEG decoder)
+- `sixteen` - Base16 color themes
+- `docopt` - CLI parsing (maintainer's fork)
 
-### Presentation Structure
-Presentations live in `charla/` directory with numbered subdirectories:
-```
-charla/
-  0-title/
-    slide.md    # Markdown content
-    title.txt   # Optional ASCII art title
-    image.jpg   # Optional image
-```
+figlet is an external runtime dependency; the `smbraille.tlf` font ships in the repo root.
 
-### External Commands Used
-The application shells out to external commands:
-- `figlet -f smbraille.tlf` - For ASCII art titles
-- `timg` - For image display in terminal
+### Presentation Format
+Single markdown file, slides separated by `---` lines. First YAML block is
+global metadata (title, author, event, location). Each slide starts with a
+YAML block (`title`, optional `image`, `image_position` top/center/bottom,
+`image_h_position` left/right/center, `image_height`), a `---`, then the
+slide's markdown content. See README.md for details and examples.
+
+Presentations used by the maintainer live in `charla/`.
 
 ## Code Style
 - Follow `.editorconfig`: 2-space indentation, LF line endings, UTF-8 encoding

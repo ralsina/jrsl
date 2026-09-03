@@ -5,12 +5,17 @@ jrsl is a terminal-based presentation program written in Crystal.
 ## Features
 
 - Display presentations from markdown files
-- ASCII art titles via figlet
-- Optional images via timg
+- ASCII art titles via figlet (using the bundled `smbraille.tlf` braille font)
+- Images rendered in-process as colored half-block characters, or natively
+  through the Kitty graphics protocol with `--kitty`
 - Syntax highlighting via [markterm](https://github.com/ralsina/markterm)
 - [Base16](https://base16.net) color theme support (using the [sixteen](https://github.com/ralsina/sixteen) library)
 
 ## Installation
+
+Requirements: [Crystal](https://crystal-lang.org) >= 1.14 and
+[figlet](https://github.com/cmatsuoka/figlet) (with its `figlet` binary on
+your `PATH`).
 
 ```sh
 git clone https://github.com/ralsina/jrsl.git
@@ -33,6 +38,9 @@ shards build
 # Use a specific base16 color theme
 ./bin/jrsl -t monokai
 
+# Use the Kitty graphics protocol for images (Kitty and some other terminals)
+./bin/jrsl --kitty
+
 # List available themes
 ./bin/jrsl --list-themes
 ```
@@ -45,7 +53,8 @@ shards build
 
 ## Presentation Format
 
-Presentations are written as markdown files with YAML frontmatter. The file consists of:
+Presentations are written as markdown files with YAML metadata blocks. The
+file consists of:
 
 1. **Global metadata** (optional) - Metadata at the top of the file for the entire presentation
 2. **Slides** - Each slide has a title (YAML) and content (markdown)
@@ -66,6 +75,8 @@ title: Welcome to My Talk
 * Third bullet point
 ---
 title: Code Example
+image: screenshots/demo.png
+image_h_position: right
 ---
 Here is some code:
 
@@ -81,6 +92,9 @@ title: Questions?
 * Email: jane@example.com
 ```
 
+A line containing only `---` separates slides. `---` lines inside fenced
+code blocks (``` or ~~~) do not split slides.
+
 ### Global Metadata
 
 The global metadata (first YAML block) supports:
@@ -90,15 +104,15 @@ The global metadata (first YAML block) supports:
 - `event` - Event name (shown in footer)
 - `location` - Location (shown in footer)
 
-### Slide Structure
+### Slide Metadata
 
-Each slide consists of:
+Each slide starts with a small YAML block containing:
 
-1. **YAML block** - Contains the slide `title`
-2. **Separator** - `---` on its own line
-3. **Markdown content** - The slide body (optional)
-
-Slides are separated by `---` delimiters.
+- `title` - Slide title, rendered as braille ASCII art via figlet (required)
+- `image` - Path to an image file to show on this slide (optional)
+- `image_position` - Vertical placement of the image: `top`, `center` (default) or `bottom`
+- `image_h_position` - Horizontal placement of the image: `left`, `right` or `center` (default). `left`/`right` place the image side-by-side with the content.
+- `image_height` - Maximum height of the image in terminal rows (optional; by default the image uses the available space)
 
 ## Development
 
