@@ -1,124 +1,6 @@
 require "./spec_helper"
 require "yaml"
 
-# Inline parsing logic for testing
-module Jrsl
-  class Slide
-    property title : String
-    property content : String
-    property image_path : String?
-    property image_position : String
-    property image_max_height : Int32?
-
-    def initialize(@title : String, @content : String = "")
-      @image_path = nil
-      @image_position = "center"
-      @image_max_height = nil
-    end
-  end
-
-  class SlideMetadata
-    include YAML::Serializable
-
-    property title : String
-    property image : String?
-    property image_position : String?
-    property image_height : Int32?
-  end
-
-  class PresentationMetadata
-    include YAML::Serializable
-
-    property title : String?
-    property author : String?
-    property event : String?
-    property location : String?
-
-    def initialize
-      @title = ""
-      @author = ""
-      @event = ""
-      @location = ""
-    end
-  end
-
-  def self.parse_slides(content : String) : Tuple(Array(Slide), PresentationMetadata)
-    slides = [] of Slide
-    metadata = PresentationMetadata.new
-    lines = content.lines
-
-    i = 0
-    # Parse global metadata from first YAML block
-    if i < lines.size && lines[i] == "---"
-      i += 1
-      metadata_lines = [] of String
-      while i < lines.size && lines[i] != "---"
-        metadata_lines << lines[i]
-        i += 1
-      end
-      i += 1 if i < lines.size # Skip this "---" which is also the start of first slide
-
-      unless metadata_lines.empty?
-        begin
-          metadata = PresentationMetadata.from_yaml(metadata_lines.join("\n"))
-        rescue
-          # If parsing fails, use default empty metadata
-        end
-      end
-    end
-
-    # Parse alternating blocks: metadata (YAML) + content (markdown)
-    while i < lines.size
-      # Skip any blank lines before metadata
-      while i < lines.size && lines[i].blank?
-        i += 1
-      end
-      break if i >= lines.size
-
-      # Slide metadata is directly after "---", no additional "---" wrapper
-      # Parse slide metadata (YAML) until next "---"
-      yaml_lines = [] of String
-      while i < lines.size && lines[i] != "---" && !lines[i].blank?
-        yaml_lines << lines[i]
-        i += 1
-      end
-
-      # If we didn't find any metadata, skip ahead
-      if yaml_lines.empty?
-        i += 1
-        next
-      end
-
-      # Parse YAML to extract title
-      slide_metadata = SlideMetadata.from_yaml(yaml_lines.join("\n"))
-      title = slide_metadata.title
-
-      # Skip the "---" delimiter between metadata and content
-      i += 1 if i < lines.size && lines[i] == "---"
-
-      # Parse slide content (markdown) until next "---" or end of file
-      content_lines = [] of String
-      while i < lines.size && lines[i] != "---"
-        content_lines << lines[i]
-        i += 1
-      end
-
-      # Create slide with title and content, preserving trailing newline if present
-      content = content_lines.join("\n")
-      content += "\n" unless content.lines.empty?
-
-      # Create slide and set image properties
-      slide = Slide.new(title, content)
-      slide.image_path = slide_metadata.image
-      slide.image_position = slide_metadata.image_position || "center"
-      slide.image_max_height = slide_metadata.image_height
-      slides << slide
-    end
-
-    {slides, metadata}
-  end
-end
-
 describe Jrsl do
   describe ".parse_slides" do
     it "parses a simple presentation" do
@@ -230,6 +112,95 @@ describe Jrsl do
       metadata.author.should eq("Roberto")
       metadata.event.should eq("JRSL 2024")
       metadata.location.should eq("Santa Fe")
+    end
+
+    it "parses image metadata with position and height" do
+      content = <<-YAML
+        ---
+        title: Talk
+        ---
+        title: With Image
+        image: photo.jpg
+        image_position: bottom
+        image_h_position: right
+        image_height: 12
+        ---
+        Content
+        YAML
+
+      slides, _metadata = Jrsl.parse_slides(content)
+
+      slides.size.should eq(1)
+      slides[0].image_path.should eq("photo.jpg")
+      slides[0].image_position.should eq("bottom")
+      slides[0].image_h_position.should eq("right")
+      slides[0].image_max_height.should eq(12)
+    end
+
+    it "defaults image position values when not specified" do
+      content = <<-YAML
+        ---
+        title: Talk
+        ---
+        title: Plain Slide
+        ---
+        Content
+        YAML
+
+      slides, _metadata = Jrsl.parse_slides(content)
+
+      slides[0].image_path.should be_nil
+      slides[0].image_position.should eq("center")
+      slides[0].image_h_position.should eq("left")
+      slides[0].image_max_height.should be_nil
+    end
+  end
+
+  describe ".normalize_for_figlet" do
+    it "replaces accented lowercase vowels" do
+      Jrsl.normalize_for_figlet("áéíóú").should eq("aeiou")
+    end
+
+    it "replaces accented uppercase vowels" do
+      Jrsl.normalize_for_figlet("ÁÉÍÓÚ").should eq("AEIOU")
+    end
+
+    it "replaces ñ and ç" do
+      Jrsl.normalize_for_figlet("España").should eq("Espana")
+      Jrsl.normalize_for_figlet("Ç").should eq("C")
+    end
+
+    it "expands ß to ss" do
+      Jrsl.normalize_for_figlet("Straße").should eq("Strasse")
+    end
+
+    it "leaves plain ASCII untouched" do
+      Jrsl.normalize_for_figlet("Hello World 123").should eq("Hello World 123")
+    end
+  end
+
+  describe ".calculate_image_max_height" do
+    it "uses full height for side-by-side layouts" do
+      result = Jrsl.calculate_image_max_height(10, 30, "center", "left")
+      result.should eq(30)
+      result = Jrsl.calculate_image_max_height(10, 30, "center", "right")
+      result.should eq(30)
+    end
+
+    it "reserves markdown rows plus gap for top layout" do
+      Jrsl.calculate_image_max_height(5, 30, "top", "center").should eq(24)
+    end
+
+    it "reserves markdown rows plus gap for bottom layout" do
+      Jrsl.calculate_image_max_height(5, 30, "bottom", "center").should eq(24)
+    end
+
+    it "reserves twice the markdown rows for centered layout" do
+      Jrsl.calculate_image_max_height(5, 30, "center", "center").should eq(18)
+    end
+
+    it "never returns less than one row" do
+      Jrsl.calculate_image_max_height(50, 30, "top", "center").should eq(1)
     end
   end
 
