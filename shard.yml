@@ -12,8 +12,6 @@ dependencies:
   tput:
     github: crystallabs/tput.cr
     version: ~> 1.0
-  stumpy_jpeg:
-    github: reiswindy/stumpy_jpeg
   markterm:
     github: ralsina/markterm
   docopt:

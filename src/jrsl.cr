@@ -466,30 +466,6 @@ module Jrsl
   end
 end
 
-def print_md(tput, markdown, x, y, h, theme, theme_name, y_offset = 0)
-  rendered = if theme && theme_name
-               Markd.to_term(markdown, theme: theme_name)
-             else
-               Markd.to_term(markdown)
-             end
-  lines = rendered.split("\n")[y_offset..-1]
-  max_y = y + h
-
-  if lines && lines.size < h
-    y += h//2 - lines.size//2
-  end
-
-  lines ||= [] of String
-  lines.each do |line|
-    tput.cursor_pos y, x
-    tput.echo line
-    y += 1
-    break if y > max_y
-  end
-
-  {lines, y}
-end
-
 def figlet_lines(text : String) : Array(String)?
   normalized_text = Jrsl.normalize_for_figlet(text)
   output = IO::Memory.new
