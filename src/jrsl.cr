@@ -9,6 +9,9 @@ require "crimage"
 module Jrsl
   VERSION = "0.3.0"
 
+  # Maximum width in terminal columns for rendered images
+  IMAGE_MAX_WIDTH = 119
+
   # Normalize accented characters to ASCII for figlet
   def self.normalize_for_figlet(text : String) : String
     mapping = {
@@ -64,6 +67,9 @@ module Jrsl
     property rendered_image : Tuple(String, Int32, Int32)?
     property kitty_image : Tuple(String, Int32, Int32)?
     property markdown_element : MarkdownElement?
+    # Dimensions the current rendered_image/kitty_image was rendered for;
+    # a mismatch (terminal resize) triggers re-rendering
+    property image_cache_key : Tuple(Int32, Int32)?
 
     def initialize(@title : String, @content : String = "")
       @image_path = nil
@@ -71,6 +77,7 @@ module Jrsl
       @rendered_image = nil
       @kitty_image = nil
       @markdown_element = nil
+      @image_cache_key = nil
     end
   end
 
@@ -618,26 +625,30 @@ def main
                   calculated_max_h
                 end
 
-        if use_kitty
-          kitty_result = Jrsl.render_image_kitty(path, 119, max_h)
-          if kitty_result
-            _, img_rows, img_cols = kitty_result
-            current.kitty_image = kitty_result
-          else
-            # Terminal reports no pixel size or kitty encoding failed:
-            # fall back to half-block rendering
-            ascii_result = Jrsl.render_image_to_string(path, 119, max_h)
-            if ascii_result
-              _, img_rows, img_cols = ascii_result
-              current.rendered_image = ascii_result
+        cache_key = {Jrsl::IMAGE_MAX_WIDTH, max_h}
+        if current.image_cache_key != cache_key
+          current.kitty_image = nil
+          current.rendered_image = nil
+
+          if use_kitty
+            kitty_result = Jrsl.render_image_kitty(path, Jrsl::IMAGE_MAX_WIDTH, max_h)
+            if kitty_result
+              current.kitty_image = kitty_result
+            else
+              # Terminal reports no pixel size or kitty encoding failed:
+              # fall back to half-block rendering
+              current.rendered_image = Jrsl.render_image_to_string(path, Jrsl::IMAGE_MAX_WIDTH, max_h)
             end
+          else
+            current.rendered_image = Jrsl.render_image_to_string(path, Jrsl::IMAGE_MAX_WIDTH, max_h)
           end
-        else
-          ascii_result = Jrsl.render_image_to_string(path, 119, max_h)
-          if ascii_result
-            _, img_rows, img_cols = ascii_result
-            current.rendered_image = ascii_result
-          end
+          current.image_cache_key = cache_key
+        end
+
+        if kitty_img = current.kitty_image
+          _, img_rows, img_cols = kitty_img
+        elsif rendered_img = current.rendered_image
+          _, img_rows, img_cols = rendered_img
         end
       end
 
