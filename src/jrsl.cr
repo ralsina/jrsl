@@ -33,9 +33,14 @@ module Jrsl
     result
   end
 
-  def self.query_cell_size : Tuple(Int16, Int16)
+  # Returns {cell_height_px, cell_width_px}, or nil when the terminal does not
+  # report pixel dimensions (very common outside graphical terminals).
+  def self.query_cell_size : Tuple(Int16, Int16)?
     thing = LibC::Winsize.new
     LibC.ioctl(STDOUT.fd, LibC::TIOCGWINSZ, pointerof(thing))
+    return nil if thing.ws_row <= 0 || thing.ws_col <= 0
+    return nil if thing.ws_ypixel <= 0 || thing.ws_xpixel <= 0
+
     {(thing.ws_ypixel / thing.ws_row).to_i16, (thing.ws_xpixel / thing.ws_col).to_i16}
   end
 
@@ -275,7 +280,9 @@ module Jrsl
     # Calculate scale to fit within max dimensions
     # max_width is terminal cells, max_height is terminal rows
 
-    cell_pixel_height, cell_pixel_width = query_cell_size()
+    cell_size = query_cell_size()
+    return nil unless cell_size
+    cell_pixel_height, cell_pixel_width = cell_size
 
     target_pixel_width = max_width * cell_pixel_width
     target_pixel_height = max_height * cell_pixel_height
@@ -616,11 +623,19 @@ def main
           if kitty_result
             _, img_rows, img_cols = kitty_result
             current.kitty_image = kitty_result
+          else
+            # Terminal reports no pixel size or kitty encoding failed:
+            # fall back to half-block rendering
+            ascii_result = Jrsl.render_image_to_string(path, 119, max_h)
+            if ascii_result
+              _, img_rows, img_cols = ascii_result
+              current.rendered_image = ascii_result
+            end
           end
         else
           ascii_result = Jrsl.render_image_to_string(path, 119, max_h)
           if ascii_result
-            rendered_str, img_rows, img_cols = ascii_result
+            _, img_rows, img_cols = ascii_result
             current.rendered_image = ascii_result
           end
         end
