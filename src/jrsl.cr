@@ -41,8 +41,8 @@ module Jrsl
   def self.query_cell_size : Tuple(Int16, Int16)?
     thing = LibC::Winsize.new
     LibC.ioctl(STDOUT.fd, LibC::TIOCGWINSZ, pointerof(thing))
-    return nil if thing.ws_row <= 0 || thing.ws_col <= 0
-    return nil if thing.ws_ypixel <= 0 || thing.ws_xpixel <= 0
+    return if thing.ws_row <= 0 || thing.ws_col <= 0
+    return if thing.ws_ypixel <= 0 || thing.ws_xpixel <= 0
 
     {(thing.ws_ypixel / thing.ws_row).to_i16, (thing.ws_xpixel / thing.ws_col).to_i16}
   end
@@ -107,33 +107,64 @@ module Jrsl
     end
   end
 
-  # ameba:disable Metrics/CyclomaticComplexity
-  def self.parse_slides(content : String) : Tuple(Array(Slide), PresentationMetadata)
-    slides = [] of Slide
+  # Parse the optional global YAML metadata block at the top of the file.
+  # Returns the metadata and the line index where slide parsing starts.
+  def self.parse_global_metadata(lines : Array(String)) : Tuple(PresentationMetadata, Int32)
     metadata = PresentationMetadata.new
-    lines = content.lines
-
     i = 0
-    # Parse global metadata from first YAML block
-    if i < lines.size && lines[i] == "---"
-      i += 1
-      metadata_lines = [] of String
-      while i < lines.size && lines[i] != "---"
-        metadata_lines << lines[i]
-        i += 1
-      end
-      i += 1 if i < lines.size # Skip this "---" which is also the start of first slide
+    return {metadata, i} unless i < lines.size && lines[i] == "---"
 
-      unless metadata_lines.empty?
-        begin
-          metadata = PresentationMetadata.from_yaml(metadata_lines.join("\n"))
-        rescue
-          # If parsing fails, use default empty metadata
-        end
+    i += 1
+    metadata_lines = [] of String
+    while i < lines.size && lines[i] != "---"
+      metadata_lines << lines[i]
+      i += 1
+    end
+    i += 1 if i < lines.size # Skip this "---" which is also the start of first slide
+
+    unless metadata_lines.empty?
+      begin
+        metadata = PresentationMetadata.from_yaml(metadata_lines.join("\n"))
+      rescue
+        # If parsing fails, use default empty metadata
       end
     end
 
-    # Parse alternating blocks: metadata (YAML) + content (markdown)
+    {metadata, i}
+  end
+
+  # Read the slide metadata (YAML) lines starting at index i.
+  # Returns the parsed metadata and the index after any "---" delimiter.
+  def self.read_slide_metadata(lines : Array(String), i : Int32) : Tuple(SlideMetadata, Int32)
+    yaml_lines = [] of String
+    while i < lines.size && lines[i] != "---" && !lines[i].blank?
+      yaml_lines << lines[i]
+      i += 1
+    end
+
+    i += 1 if i < lines.size && lines[i] == "---" # Skip the delimiter between metadata and content
+
+    {SlideMetadata.from_yaml(yaml_lines.join("\n")), i}
+  end
+
+  # Read the slide content (markdown) lines starting at index i, until the
+  # next "---" delimiter or end of file.
+  # Returns the content lines and the index of the delimiter (or lines.size).
+  def self.read_slide_content(lines : Array(String), i : Int32) : Tuple(Array(String), Int32)
+    content_lines = [] of String
+    while i < lines.size && lines[i] != "---"
+      content_lines << lines[i]
+      i += 1
+    end
+    {content_lines, i}
+  end
+
+  # Parse alternating blocks starting at start_index: slide metadata (YAML)
+  # followed by content (markdown), separated by "---" lines
+  def self.parse_slide_blocks(lines : Array(String), start_index : Int32) : Array(Slide)
+    slides = [] of Slide
+    i = start_index
+
     while i < lines.size
       # Skip any blank lines before metadata
       while i < lines.size && lines[i].blank?
@@ -142,39 +173,21 @@ module Jrsl
       break if i >= lines.size
 
       # Slide metadata is directly after "---", no additional "---" wrapper
-      # Parse slide metadata (YAML) until next "---"
-      yaml_lines = [] of String
-      while i < lines.size && lines[i] != "---" && !lines[i].blank?
-        yaml_lines << lines[i]
-        i += 1
-      end
-
-      # If we didn't find any metadata, skip ahead
-      if yaml_lines.empty?
+      yaml_lines_empty = lines[i] == "---" || lines[i].blank?
+      if yaml_lines_empty
         i += 1
         next
       end
 
-      # Parse YAML to extract title
-      slide_metadata = SlideMetadata.from_yaml(yaml_lines.join("\n"))
-      title = slide_metadata.title
-
-      # Skip the "---" delimiter between metadata and content
-      i += 1 if i < lines.size && lines[i] == "---"
-
-      # Parse slide content (markdown) until next "---" or end of file
-      content_lines = [] of String
-      while i < lines.size && lines[i] != "---"
-        content_lines << lines[i]
-        i += 1
-      end
+      slide_metadata, i = read_slide_metadata(lines, i)
 
       # Create slide with title and content, preserving trailing newline if present
+      content_lines, i = read_slide_content(lines, i)
       content = content_lines.join("\n")
       content += "\n" unless content.lines.empty?
 
       # Create slide and set image properties
-      slide = Slide.new(title, content)
+      slide = Slide.new(slide_metadata.title, content)
       slide.image_path = slide_metadata.image
       slide.image_position = slide_metadata.image_position
       slide.image_h_position = slide_metadata.image_h_position
@@ -182,15 +195,22 @@ module Jrsl
       slides << slide
     end
 
+    slides
+  end
+
+  def self.parse_slides(content : String) : Tuple(Array(Slide), PresentationMetadata)
+    lines = content.lines
+    metadata, i = parse_global_metadata(lines)
+    slides = parse_slide_blocks(lines, i)
     {slides, metadata}
   end
 
   def self.load_image(path : String) : CrImage::Image?
     unless File.exists?(path)
-      return nil
+      return
     end
     CrImage.read(path)
-  rescue e : Exception
+  rescue Exception
     nil
   end
 
@@ -199,13 +219,13 @@ module Jrsl
   # Returns {rendered_string, line_count, width_in_chars} or nil if loading fails
   def self.render_image_to_string(path : String, max_width : Int32, max_height : Int32) : Tuple(String, Int32, Int32)?
     image = load_image(path)
-    return nil unless image
+    return unless image
 
     img_width = image.bounds.width.to_i64
     img_height = image.bounds.height.to_i64
 
     if img_width == 0 || img_height == 0
-      return nil
+      return
     end
 
     # Each character cell represents 2 vertical pixels
@@ -267,7 +287,7 @@ module Jrsl
     end
 
     {output_lines.join("\n"), output_lines.size, scaled_width.to_i32}
-  rescue e : Exception
+  rescue Exception
     nil
   end
 
@@ -275,20 +295,20 @@ module Jrsl
   # Returns the escape sequence string to display the image
   def self.render_image_kitty(path : String, max_width : Int32, max_height : Int32) : Tuple(String, Int32, Int32)?
     image = load_image(path)
-    return nil unless image
+    return unless image
 
     img_width = image.bounds.width.to_i32
     img_height = image.bounds.height.to_i32
 
     if img_width == 0 || img_height == 0
-      return nil
+      return
     end
 
     # Calculate scale to fit within max dimensions
     # max_width is terminal cells, max_height is terminal rows
 
     cell_size = query_cell_size()
-    return nil unless cell_size
+    return unless cell_size
     cell_pixel_height, cell_pixel_width = cell_size
 
     target_pixel_width = max_width * cell_pixel_width
@@ -341,7 +361,7 @@ module Jrsl
     terminal_rows = (new_height.to_f64 / cell_pixel_height).ceil.to_i32
     terminal_cols = (new_width.to_f64 / cell_pixel_width).ceil.to_i32
     {control_parts.join, terminal_rows, terminal_cols}
-  rescue e : Exception
+  rescue Exception
     nil
   end
 
@@ -383,6 +403,67 @@ module Jrsl
       available_height
     end
   end
+
+  # Column where a block of content_cols cells starts to be centered on a
+  # screen of screen_width columns
+  def self.center_x(screen_width : Int32, content_cols : Int32) : Int32
+    ((screen_width - content_cols) // 2).clamp(0, screen_width)
+  end
+
+  # Column where the image starts given its horizontal placement setting
+  def self.image_x_position(h_position : String, screen_width : Int32, img_cols : Int32) : Int32
+    x = case h_position
+        when "left"
+          0
+        when "right"
+          screen_width - img_cols
+        else # "center" (default)
+          center_x(screen_width, img_cols)
+        end
+    x.clamp(0, screen_width)
+  end
+
+  # Side-by-side layout columns: Returns {image_x, md_x}
+  def self.side_by_side_layout(h_position : String, screen_width : Int32, img_cols : Int32) : Tuple(Int32, Int32)
+    gap = 2 # Columns between image and markdown
+
+    if h_position == "right"
+      md_x = 0
+      image_x = screen_width - img_cols
+      {image_x, md_x}
+    else # "left"
+      image_x = 0
+      md_x = img_cols + gap
+      {image_x, md_x}
+    end
+  end
+
+  # Vertical positions for stacked layouts.
+  # Returns {img_y, md_y, available_md_height}
+  def self.stacked_layout(position : String, content_area_start : Int32, content_area_height : Int32, img_rows : Int32, md_rows : Int32) : Tuple(Int32, Int32, Int32)
+    if position == "top"
+      # Image at top of content area, markdown below
+      img_y = content_area_start
+      md_y = img_y + img_rows + 1
+      available_md_height = content_area_height - img_rows - 1
+    elsif position == "center"
+      # Image centered vertically in space above bottom-anchored markdown
+      available_for_image = content_area_height - md_rows - 1
+      img_y = content_area_start + (available_for_image - img_rows) // 2
+      img_y = content_area_start if img_y < content_area_start
+      md_y = content_area_start + content_area_height - md_rows
+      available_md_height = content_area_start + content_area_height - md_y
+    else # "bottom"
+      # Image at bottom of content area, markdown above
+      img_y = content_area_start + content_area_height - img_rows
+      img_y = content_area_start if img_rows > content_area_height
+      md_y = content_area_start
+      available_md_height = [img_y - md_y, content_area_height].min
+    end
+
+    available_md_height = 0 if available_md_height < 0
+    {img_y, md_y, available_md_height}
+  end
 end
 
 def print_md(tput, markdown, x, y, h, theme, theme_name, y_offset = 0)
@@ -414,10 +495,10 @@ def figlet_lines(text : String) : Array(String)?
   output = IO::Memory.new
   process = Process.new("figlet", ["-f", "smbraille.tlf", normalized_text], output: output)
   status = process.wait
-  return nil unless status.success?
+  return unless status.success?
 
   output.rewind.gets_to_end.split("\n").map(&.rstrip).reject &.empty?
-rescue e : File::NotFoundError
+rescue File::NotFoundError
   nil
 end
 
@@ -479,94 +560,280 @@ def build_footer(metadata : Jrsl::PresentationMetadata, slide_num : Int32, total
   footer_text.colorize(fg_rgb.colorize).back(bg_rgb.colorize)
 end
 
-# ameba:disable Metrics/CyclomaticComplexity
-def main
-  doc = <<-DOC
-  JRSL - Terminal-based presentation program
+def draw_image(tput, slide : Jrsl::Slide, img_y : Int32, image_x : Int32)
+  if kitty_img = slide.kitty_image
+    kitty_str, _, _ = kitty_img
+    print "\e[#{img_y + 1};#{image_x}H"
+    STDOUT.flush
+    print kitty_str
+    STDOUT.flush
+    print " "
+    STDOUT.flush
+  elsif rendered_img = slide.rendered_image
+    rendered_str, _, _ = rendered_img
+    rendered_str.split("\n").each_with_index do |line, line_y|
+      tput.cursor_pos img_y + line_y, image_x
+      tput.echo(line)
+    end
+  end
+end
 
-  Usage:
-    jrsl [-t <theme>] [--kitty] [<file>]
-    jrsl -h | --help
-    jrsl --version
-    jrsl --list-themes
+# Draw the markdown lines starting at y_offset, up to max_rows rows
+def draw_markdown(tput, md_lines : Array(String), md_rows : Int32, md_x : Int32, md_y : Int32, y_offset : Int32, max_rows : Int32)
+  visible_md_rows = [md_rows, max_rows].min
+  return if visible_md_rows <= 0
 
-  Options:
-    -h --help       Show this help message
-    --version       Show version
-    --list-themes    List available color themes
-    -t <theme>      Color theme to use
-    --kitty         Use Kitty graphics protocol for images
+  start_row = y_offset
+  end_row = [start_row + visible_md_rows, md_lines.size].min
+  visible_lines = md_lines[start_row...end_row] || [] of String
 
-  Arguments:
-    <file>          Presentation file to open [default: charla/charla.md]
-  DOC
+  visible_lines.each_with_index do |line, idx|
+    tput.cursor_pos md_y + idx, md_x
+    tput.echo(line)
+  end
+end
 
-  args = Docopt.docopt(doc)
+enum InputAction
+  None
+  Quit
+  ScrollUp
+  ScrollDown
+  PreviousSlide
+  NextSlide
+end
 
+# Wait for a meaningful keypress. Keys that would act on a boundary
+# (scrolling up at the top, changing slides at the edges) keep waiting.
+def read_action(tput, y_offset : Int32, slide_index : Int32, total_slides : Int32) : InputAction
+  action = InputAction::None
+  tput.listen do |char, key, _|
+    if char == 'q'
+      action = InputAction::Quit
+      break
+    end
+
+    case key
+    when Tput::Key::Up
+      if y_offset > 0
+        action = InputAction::ScrollUp
+        break
+      end
+    when Tput::Key::Down
+      action = InputAction::ScrollDown
+      break
+    when Tput::Key::Left
+      if slide_index > 0
+        action = InputAction::PreviousSlide
+        break
+      end
+    when Tput::Key::Right
+      if slide_index < total_slides - 1
+        action = InputAction::NextSlide
+        break
+      end
+    end
+  end
+  action
+end
+
+def load_theme(theme_name : String?)
+  return unless theme_name
+
+  begin
+    Sixteen.theme_with_fallback(theme_name)
+  rescue Exception
+    STDERR.puts "Warning: Theme '#{theme_name}' not found, using default colors"
+    nil
+  end
+end
+
+# Render the slide image if needed (respecting the cache) and return its
+# dimensions {rows, cols}
+def ensure_image_dimensions(slide : Jrsl::Slide, use_kitty : Bool, md_rows : Int32, content_area_height : Int32) : Tuple(Int32, Int32)
+  return {0, 0} unless path = slide.image_path
+
+  # Calculate max height for image based on available space
+  calculated_max_h = Jrsl.calculate_image_max_height(md_rows, content_area_height, slide.image_position, slide.image_h_position)
+  # Use the smaller of calculated height or user-specified height
+  max_h = if user_h = slide.image_max_height
+            [user_h, calculated_max_h].min
+          else
+            calculated_max_h
+          end
+
+  cache_key = {Jrsl::IMAGE_MAX_WIDTH, max_h}
+  if slide.image_cache_key != cache_key
+    slide.kitty_image = nil
+    slide.rendered_image = nil
+
+    if use_kitty
+      kitty_result = Jrsl.render_image_kitty(path, Jrsl::IMAGE_MAX_WIDTH, max_h)
+      if kitty_result
+        slide.kitty_image = kitty_result
+      else
+        # Terminal reports no pixel size or kitty encoding failed:
+        # fall back to half-block rendering
+        slide.rendered_image = Jrsl.render_image_to_string(path, Jrsl::IMAGE_MAX_WIDTH, max_h)
+      end
+    else
+      slide.rendered_image = Jrsl.render_image_to_string(path, Jrsl::IMAGE_MAX_WIDTH, max_h)
+    end
+    slide.image_cache_key = cache_key
+  end
+
+  if kitty_img = slide.kitty_image
+    {kitty_img[1], kitty_img[2]}
+  elsif rendered_img = slide.rendered_image
+    {rendered_img[1], rendered_img[2]}
+  else
+    {0, 0}
+  end
+end
+
+def render_slide(tput, slides : Array(Jrsl::Slide), slide_index : Int32, y_offset : Int32, theme, use_kitty : Bool)
+  current = slides[slide_index]
+  current_y = 0
+
+  # Print title if present
+  unless current.title.empty?
+    print_figlet(tput, current.title, 0, current_y, theme)
+    current_y += 3
+  end
+
+  # Content area dimensions
+  content_area_start = current_y
+  content_area_height = tput.screen.height - content_area_start - 1
+  screen_width = tput.screen.width
+
+  # Get markdown dimensions (0x0 if none)
+  md_rows = 0
+  md_cols = 0
+  md_lines = [] of String
+  if md_element = current.markdown_element
+    md_rows = md_element.rows
+    md_cols = md_element.cols
+    md_lines = md_element.rendered.split("\n")
+  end
+
+  img_rows, img_cols = ensure_image_dimensions(current, use_kitty, md_rows, content_area_height)
+
+  # Layout based on horizontal position first
+  if current.image_h_position == "left" || current.image_h_position == "right"
+    # Side-by-side layout: image and markdown share vertical space
+    image_x, md_x = Jrsl.side_by_side_layout(current.image_h_position, screen_width, img_cols)
+    img_y = content_area_start
+    md_y = content_area_start
+
+    draw_image(tput, current, img_y, image_x)
+    draw_markdown(tput, md_lines, md_rows, md_x, md_y, y_offset, content_area_height)
+  else
+    # Stacked layout: image and markdown stacked vertically
+    image_x = Jrsl.image_x_position(current.image_h_position, screen_width, img_cols)
+    md_x = Jrsl.center_x(screen_width, md_cols)
+    img_y, md_y, available_md_height = Jrsl.stacked_layout(current.image_position, content_area_start, content_area_height, img_rows, md_rows)
+
+    draw_image(tput, current, img_y, image_x)
+    draw_markdown(tput, md_lines, md_rows, md_x, md_y, y_offset, available_md_height)
+  end
+end
+
+def print_theme_list
+  puts "Available color themes:"
+  Sixteen.available_themes.each do |available_theme|
+    puts "  #{available_theme}"
+  end
+end
+
+# Handle the flags that print information and exit. Returns true if handled.
+def cli_flags_handled(args) : Bool
   if args["--version"]
     puts "JRSL version #{Jrsl::VERSION}"
-    exit 0
+    return true
   end
 
   if args["--list-themes"]
-    puts "Available color themes:"
-    Sixteen.available_themes.each do |theme|
-      puts "  #{theme}"
-    end
-    exit 0
+    print_theme_list
+    return true
   end
 
-  # Get theme
-  theme_name = if args["-t"].is_a?(String)
-                 args["-t"].as(String).downcase
-               else
-                 nil
-               end
+  false
+end
 
-  theme = nil
-  if theme_name
-    begin
-      theme = Sixteen.theme_with_fallback(theme_name)
-    rescue e : Exception
-      STDERR.puts "Warning: Theme '#{theme_name}' not found, using default colors"
-      theme = nil
-    end
+# Pre-render the slides' markdown before entering the TUI.
+# Images are rendered on-the-fly based on actual screen dimensions.
+# Markdown width is half screen width for side-by-side layouts.
+def prerender_markdown(slides : Array(Jrsl::Slide), terminal_width : Int32)
+  md_width = terminal_width // 2 - 2 # Half screen minus gap
+  slides.each do |slide|
+    next if slide.content.empty?
+
+    slide.markdown_element = Jrsl.render_markdown_to_element(slide.content, md_width)
   end
+end
+
+# Apply an input action to the (slide, y_offset) state
+def apply_action(action : InputAction, slide : Int32, y_offset : Int32) : Tuple(Int32, Int32)
+  case action
+  when InputAction::ScrollUp
+    {slide, y_offset - 1}
+  when InputAction::ScrollDown
+    {slide, y_offset + 1}
+  when InputAction::PreviousSlide
+    {slide - 1, 0}
+  when InputAction::NextSlide
+    {slide + 1, 0}
+  else
+    {slide, y_offset}
+  end
+end
+
+def main
+  doc = <<-DOC
+    JRSL - Terminal-based presentation program
+
+    Usage:
+      jrsl [-t <theme>] [--kitty] [<file>]
+      jrsl -h | --help
+      jrsl --version
+      jrsl --list-themes
+
+    Options:
+      -h --help       Show this help message
+      --version       Show version
+      --list-themes    List available color themes
+      -t <theme>      Color theme to use
+      --kitty         Use Kitty graphics protocol for images
+
+    Arguments:
+      <file>          Presentation file to open [default: charla/charla.md]
+    DOC
+
+  args = Docopt.docopt(doc)
+
+  exit 0 if cli_flags_handled(args)
+
+  theme = load_theme(args["-t"].as?(String).try &.downcase)
 
   terminfo = Unibilium::Terminfo.from_env
   tput = Tput.new terminfo
 
   tput.alternate
 
-  # Parse slides from the specified file
-  slides_file = if args["<file>"].is_a?(String)
-                  args["<file>"].as(String)
-                else
-                  "charla/charla.md"
-                end
+  slides_file = args["<file>"].as?(String) || "charla/charla.md"
+  unless File.exists?(slides_file)
+    STDERR.puts "Error: File not found: #{slides_file}"
+    tput.cursor_reset
+    exit 1
+  end
 
-  slides, metadata = if File.exists?(slides_file)
-                       Jrsl.parse_slides(File.read(slides_file))
-                     else
-                       STDERR.puts "Error: File not found: #{slides_file}"
-                       tput.cursor_reset
-                       exit 1
-                     end
+  slides, metadata = Jrsl.parse_slides(File.read(slides_file))
 
   # Check if kitty mode is enabled
   use_kitty = args["--kitty"] == true
 
-  # Pre-render markdown before entering TUI
-  # Images will be rendered on-the-fly based on actual screen dimensions
-  # Markdown width is half screen width for side-by-side layouts
   terminal_size = Term::Screen.size || {24, 80}
   _, terminal_width = terminal_size
-  md_width = terminal_width // 2 - 2 # Half screen minus gap
-  slides.each do |slide|
-    unless slide.content.empty?
-      slide.markdown_element = Jrsl.render_markdown_to_element(slide.content, md_width)
-    end
-  end
+  prerender_markdown(slides, terminal_width)
 
   y_offset = 0
   slide = 0
@@ -587,277 +854,13 @@ def main
     tput.cursor_pos tput.screen.height, 0
     tput.echo(footer)
 
-    if slide < slides.size
-      current = slides[slide]
-      current_y = 0
+    render_slide(tput, slides, slide, y_offset, theme, use_kitty) if slide < slides.size
 
-      # Print title if present
-      unless current.title.empty?
-        print_figlet(tput, current.title, 0, current_y, theme)
-        current_y += 3
-      end
-
-      # Content area dimensions
-      content_area_start = current_y
-      content_area_height = tput.screen.height - content_area_start - 1
-      screen_width = tput.screen.width
-
-      # Get markdown dimensions (0x0 if none)
-      md_rows = 0
-      md_cols = 0
-      md_lines = [] of String
-      if md_element = current.markdown_element
-        md_rows = md_element.rows
-        md_cols = md_element.cols
-        md_lines = md_element.rendered.split("\n")
-      end
-
-      # Render image with appropriate size based on markdown and screen dimensions
-      img_rows = 0
-      img_cols = 0
-      if path = current.image_path
-        # Calculate max height for image based on available space
-        calculated_max_h = Jrsl.calculate_image_max_height(md_rows, content_area_height, current.image_position, current.image_h_position)
-        # Use the smaller of calculated height or user-specified height
-        max_h = if user_h = current.image_max_height
-                  [user_h, calculated_max_h].min
-                else
-                  calculated_max_h
-                end
-
-        cache_key = {Jrsl::IMAGE_MAX_WIDTH, max_h}
-        if current.image_cache_key != cache_key
-          current.kitty_image = nil
-          current.rendered_image = nil
-
-          if use_kitty
-            kitty_result = Jrsl.render_image_kitty(path, Jrsl::IMAGE_MAX_WIDTH, max_h)
-            if kitty_result
-              current.kitty_image = kitty_result
-            else
-              # Terminal reports no pixel size or kitty encoding failed:
-              # fall back to half-block rendering
-              current.rendered_image = Jrsl.render_image_to_string(path, Jrsl::IMAGE_MAX_WIDTH, max_h)
-            end
-          else
-            current.rendered_image = Jrsl.render_image_to_string(path, Jrsl::IMAGE_MAX_WIDTH, max_h)
-          end
-          current.image_cache_key = cache_key
-        end
-
-        if kitty_img = current.kitty_image
-          _, img_rows, img_cols = kitty_img
-        elsif rendered_img = current.rendered_image
-          _, img_rows, img_cols = rendered_img
-        end
-      end
-
-      # Calculate horizontal position for image
-      image_x = case current.image_h_position
-                when "left"
-                  0
-                when "right"
-                  (screen_width - img_cols).clamp(0, screen_width)
-                else # "center" (default)
-                  ((screen_width - img_cols) // 2).clamp(0, screen_width)
-                end
-
-      # Layout based on horizontal position first
-      if current.image_h_position == "left" || current.image_h_position == "right"
-        # Side-by-side layout: image and markdown share vertical space
-        gap = 2 # Columns between image and markdown
-
-        if current.image_h_position == "left"
-          image_x = 0
-          md_x = img_cols + gap
-          md_max_width = screen_width - md_x
-        else # "right"
-          md_x = 0
-          md_max_width = screen_width - img_cols - gap
-          image_x = md_max_width + gap
-        end
-
-        # Both image and markdown start at content_area_start vertically
-        img_y = content_area_start
-        md_y = content_area_start
-
-        # Display image
-        if kitty_img = current.kitty_image
-          kitty_str, _, _ = kitty_img
-          print "\e[#{img_y + 1};#{image_x}H"
-          STDOUT.flush
-          print kitty_str
-          STDOUT.flush
-          print " "
-          STDOUT.flush
-        elsif rendered_img = current.rendered_image
-          rendered_str, _, _ = rendered_img
-          rendered_str.split("\n").each_with_index do |line, line_y|
-            tput.cursor_pos img_y + line_y, image_x
-            tput.echo(line)
-          end
-        end
-
-        # Display markdown alongside image
-        visible_md_rows = [md_rows, content_area_height].min
-        if visible_md_rows > 0 && md_element
-          start_row = y_offset
-          end_row = [start_row + visible_md_rows, md_lines.size].min
-          visible_lines = md_lines[start_row...end_row] || [] of String
-
-          visible_lines.each_with_index do |line, idx|
-            tput.cursor_pos md_y + idx, md_x
-            tput.echo(line)
-          end
-        end
-      else
-        # Stacked layout (center): image and markdown stacked vertically
-        # Calculate horizontal position for markdown block
-        md_x = ((screen_width - md_cols) // 2).clamp(0, screen_width)
-
-        if current.image_position == "top"
-          # Image at top of content area, markdown below
-          img_y = content_area_start
-          md_y = img_y + img_rows + 1
-
-          # Display image
-          if kitty_img = current.kitty_image
-            kitty_str, _, _ = kitty_img
-            print "\e[#{img_y + 1};#{image_x}H"
-            STDOUT.flush
-            print kitty_str
-            STDOUT.flush
-            print " "
-            STDOUT.flush
-          elsif rendered_img = current.rendered_image
-            rendered_str, _, _ = rendered_img
-            rendered_str.split("\n").each_with_index do |line, line_y|
-              tput.cursor_pos img_y + line_y, image_x
-              tput.echo(line)
-            end
-          end
-
-          # Display markdown (truncated to fit remaining space)
-          available_md_height = content_area_height - img_rows - 1
-          available_md_height = 0 if available_md_height < 0
-          visible_md_rows = [md_rows, available_md_height].min
-          if visible_md_rows > 0 && md_element
-            start_row = y_offset
-            end_row = [start_row + visible_md_rows, md_lines.size].min
-            visible_lines = md_lines[start_row...end_row] || [] of String
-
-            visible_lines.each_with_index do |line, idx|
-              tput.cursor_pos md_y + idx, md_x
-              tput.echo(line)
-            end
-          end
-        elsif current.image_position == "center"
-          # Image centered vertically in space above markdown
-          available_for_image = content_area_height - md_rows - 1
-          img_y = content_area_start + (available_for_image - img_rows) // 2
-          img_y = content_area_start if img_y < content_area_start
-          md_y = content_area_start + content_area_height - md_rows
-
-          # Display image
-          if kitty_img = current.kitty_image
-            kitty_str, _, _ = kitty_img
-            print "\e[#{img_y + 1};#{image_x}H"
-            STDOUT.flush
-            print kitty_str
-            STDOUT.flush
-            print " "
-            STDOUT.flush
-          elsif rendered_img = current.rendered_image
-            rendered_str, _, _ = rendered_img
-            rendered_str.split("\n").each_with_index do |line, line_y|
-              tput.cursor_pos img_y + line_y, image_x
-              tput.echo(line)
-            end
-          end
-
-          # Display markdown centered horizontally
-          available_md_height = content_area_start + content_area_height - md_y
-          available_md_height = 0 if available_md_height < 0
-          visible_md_rows = [md_rows, available_md_height].min
-          if visible_md_rows > 0 && md_element
-            start_row = y_offset
-            end_row = [start_row + visible_md_rows, md_lines.size].min
-            visible_lines = md_lines[start_row...end_row] || [] of String
-
-            visible_lines.each_with_index do |line, idx|
-              tput.cursor_pos md_y + idx, md_x
-              tput.echo(line)
-            end
-          end
-        else # "bottom"
-          # Image at bottom of content area, markdown above
-          img_y = content_area_start + content_area_height - img_rows
-          img_y = content_area_start if img_rows > content_area_height
-
-          # Display markdown above image
-          md_y = content_area_start
-          available_md_height = [img_y - md_y, content_area_height].min
-          available_md_height = 0 if available_md_height < 0
-          visible_md_rows = [md_rows, available_md_height].min
-          if visible_md_rows > 0 && md_element
-            start_row = y_offset
-            end_row = [start_row + visible_md_rows, md_lines.size].min
-            visible_lines = md_lines[start_row...end_row] || [] of String
-
-            visible_lines.each_with_index do |line, idx|
-              tput.cursor_pos md_y + idx, md_x
-              tput.echo(line)
-            end
-          end
-
-          # Display image at bottom
-          if kitty_img = current.kitty_image
-            kitty_str, _, _ = kitty_img
-            print "\e[#{img_y + 1};#{image_x}H"
-            STDOUT.flush
-            print kitty_str
-            STDOUT.flush
-            print " "
-            STDOUT.flush
-          elsif rendered_img = current.rendered_image
-            rendered_str, _, _ = rendered_img
-            rendered_str.split("\n").each_with_index do |line, line_y|
-              tput.cursor_pos img_y + line_y, image_x
-              tput.echo(line)
-            end
-          end
-        end
-      end
+    action = read_action(tput, y_offset, slide, slides.size)
+    if action.quit?
+      tput.cursor_reset
+      exit 0
     end
-
-    tput.listen do |char, key, _|
-      if char == 'q'
-        tput.cursor_reset
-        exit 0
-      else
-        case key
-        when Tput::Key::Up
-          if y_offset > 0
-            y_offset -= 1
-            break
-          end
-        when Tput::Key::Down
-          y_offset += 1
-          break
-        when Tput::Key::Left
-          if slide > 0
-            slide -= 1
-            y_offset = 0
-            break
-          end
-        when Tput::Key::Right
-          if slide < slides.size - 1
-            slide += 1
-            y_offset = 0
-            break
-          end
-        end
-      end
-    end
+    slide, y_offset = apply_action(action, slide, y_offset)
   end
 end
