@@ -114,6 +114,9 @@ Each slide starts with a small YAML block containing:
 - `image_h_position` - Horizontal placement of the image: `left`, `right` or `center` (default). `left`/`right` place the image side-by-side with the content.
 - `image_height` - Maximum height of the image in terminal rows (optional; by default the image uses the available space)
 
+Images are rendered at most 119 columns wide, or the terminal width if
+narrower.
+
 ## Development
 
 ```sh

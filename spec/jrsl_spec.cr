@@ -330,6 +330,20 @@ describe Jrsl do
     end
   end
 
+  describe ".effective_image_width" do
+    it "caps to IMAGE_MAX_WIDTH on wide screens" do
+      Jrsl.effective_image_width(300).should eq(Jrsl::IMAGE_MAX_WIDTH)
+    end
+
+    it "caps to the screen width on narrow screens" do
+      Jrsl.effective_image_width(80).should eq(80)
+    end
+
+    it "uses either limit exactly when they coincide" do
+      Jrsl.effective_image_width(Jrsl::IMAGE_MAX_WIDTH).should eq(Jrsl::IMAGE_MAX_WIDTH)
+    end
+  end
+
   describe ".render_image_to_string" do
     it "renders an image without crashing" do
       with_test_image(200, 100) do |image_path|
@@ -369,6 +383,47 @@ describe Jrsl do
         _, _line_count, width = result || fail("expected a rendered image")
         width.should be <= 40
       end
+    end
+  end
+end
+
+describe "ensure_image_dimensions" do
+  it "never renders an image wider than the screen" do
+    with_test_image(300, 150) do |image_path|
+      slide = Jrsl::Slide.new("Test", "")
+      slide.image_path = image_path
+
+      _img_rows, img_cols = ensure_image_dimensions(slide, false, 0, 30, 80)
+      img_cols.should be > 0
+      img_cols.should be <= 80
+    end
+  end
+
+  it "re-renders when the screen becomes narrower" do
+    with_test_image(300, 150) do |image_path|
+      slide = Jrsl::Slide.new("Test", "")
+      slide.image_path = image_path
+
+      _img_rows, wide_cols = ensure_image_dimensions(slide, false, 0, 30, 119)
+      wide_cols.should be <= Jrsl::IMAGE_MAX_WIDTH
+
+      _img_rows, narrow_cols = ensure_image_dimensions(slide, false, 0, 30, 80)
+      narrow_cols.should be <= 80
+    end
+  end
+
+  it "reuses the cached image while dimensions are unchanged" do
+    with_test_image(300, 150) do |image_path|
+      slide = Jrsl::Slide.new("Test", "")
+      slide.image_path = image_path
+
+      ensure_image_dimensions(slide, false, 0, 30, 80)
+      slide.rendered_image.should_not be_nil
+
+      # Simulate having drawn the image: a cache hit must not re-render
+      slide.rendered_image = nil
+      ensure_image_dimensions(slide, false, 0, 30, 80)
+      slide.rendered_image.should be_nil
     end
   end
 end

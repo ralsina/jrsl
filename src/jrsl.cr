@@ -12,6 +12,11 @@ module Jrsl
   # Maximum width in terminal columns for rendered images
   IMAGE_MAX_WIDTH = 119
 
+  # Effective maximum image width in cells: never wider than the screen
+  def self.effective_image_width(screen_width : Int32) : Int32
+    Math.min(IMAGE_MAX_WIDTH, screen_width)
+  end
+
   # Normalize accented characters to ASCII for figlet
   def self.normalize_for_figlet(text : String) : String
     mapping = {
@@ -655,8 +660,10 @@ end
 
 # Render the slide image if needed (respecting the cache) and return its
 # dimensions {rows, cols}
-def ensure_image_dimensions(slide : Jrsl::Slide, use_kitty : Bool, md_rows : Int32, content_area_height : Int32) : Tuple(Int32, Int32)
+def ensure_image_dimensions(slide : Jrsl::Slide, use_kitty : Bool, md_rows : Int32, content_area_height : Int32, screen_width : Int32) : Tuple(Int32, Int32)
   return {0, 0} unless path = slide.image_path
+
+  image_width = Jrsl.effective_image_width(screen_width)
 
   # Calculate max height for image based on available space
   calculated_max_h = Jrsl.calculate_image_max_height(md_rows, content_area_height, slide.image_position, slide.image_h_position)
@@ -667,22 +674,22 @@ def ensure_image_dimensions(slide : Jrsl::Slide, use_kitty : Bool, md_rows : Int
             calculated_max_h
           end
 
-  cache_key = {Jrsl::IMAGE_MAX_WIDTH, max_h}
+  cache_key = {image_width, max_h}
   if slide.image_cache_key != cache_key
     slide.kitty_image = nil
     slide.rendered_image = nil
 
     if use_kitty
-      kitty_result = Jrsl.render_image_kitty(path, Jrsl::IMAGE_MAX_WIDTH, max_h)
+      kitty_result = Jrsl.render_image_kitty(path, image_width, max_h)
       if kitty_result
         slide.kitty_image = kitty_result
       else
         # Terminal reports no pixel size or kitty encoding failed:
         # fall back to half-block rendering
-        slide.rendered_image = Jrsl.render_image_to_string(path, Jrsl::IMAGE_MAX_WIDTH, max_h)
+        slide.rendered_image = Jrsl.render_image_to_string(path, image_width, max_h)
       end
     else
-      slide.rendered_image = Jrsl.render_image_to_string(path, Jrsl::IMAGE_MAX_WIDTH, max_h)
+      slide.rendered_image = Jrsl.render_image_to_string(path, image_width, max_h)
     end
     slide.image_cache_key = cache_key
   end
@@ -721,7 +728,7 @@ def render_slide(tput, slides : Array(Jrsl::Slide), slide_index : Int32, y_offse
     md_lines = md_element.rendered.split("\n")
   end
 
-  img_rows, img_cols = ensure_image_dimensions(current, use_kitty, md_rows, content_area_height)
+  img_rows, img_cols = ensure_image_dimensions(current, use_kitty, md_rows, content_area_height, screen_width)
 
   # Layout based on horizontal position first
   if current.image_h_position == "left" || current.image_h_position == "right"
