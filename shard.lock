@@ -1,6 +1,10 @@
 # NOTICE: This lockfile contains some overrides from shard.override.yml
 version: 2.0
 shards:
+  ameba:
+    git: https://github.com/crystal-ameba/ameba.git
+    version: 1.7.0
+
   baked_file_system: # Overridden
     git: https://github.com/ralsina/baked_file_system.git
     version: 0.10.0+git.commit.beb373124c7a235cfb9cd94e36849d8168eaa04b
