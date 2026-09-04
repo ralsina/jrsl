@@ -74,7 +74,7 @@ describe Jrsl do
         More content
         YAML
 
-      slides, metadata = Jrsl.parse_slides(content)
+      slides, _metadata = Jrsl.parse_slides(content)
 
       slides.size.should eq(2)
       slides[0].title.should eq("First Slide")
@@ -133,7 +133,7 @@ describe Jrsl do
         Content
         YAML
 
-      slides, metadata = Jrsl.parse_slides(content)
+      _slides, metadata = Jrsl.parse_slides(content)
 
       metadata.title.should eq("My Talk")
       metadata.author.should eq("Roberto")
@@ -355,7 +355,7 @@ describe Jrsl do
       with_test_image(200, 100) do |image_path|
         result = Jrsl.render_image_to_string(image_path, 119, 14)
 
-        rendered, line_count, width = result || fail("expected a rendered image")
+        rendered, _line_count, width = result || fail("expected a rendered image")
 
         # Width should be much smaller than the string size (which includes ANSI codes)
         width.should be < rendered.size
@@ -366,7 +366,7 @@ describe Jrsl do
       with_test_image(200, 100) do |image_path|
         result = Jrsl.render_image_to_string(image_path, 40, 14)
 
-        _, line_count, width = result || fail("expected a rendered image")
+        _, _line_count, width = result || fail("expected a rendered image")
         width.should be <= 40
       end
     end
