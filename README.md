@@ -13,7 +13,7 @@ jrsl is a terminal-based presentation program written in Crystal.
 
 ## Installation
 
-Requirements: [Crystal](https://crystal-lang.org) >= 1.14 and
+Requirements: [Crystal](https://crystal-lang.org) >= 1.21 and
 [figlet](https://github.com/cmatsuoka/figlet) (with its `figlet` binary on
 your `PATH`).
 

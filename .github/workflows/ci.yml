@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        crystal: ["1.14.0", "latest"]
+        crystal: ["1.21.0", "latest"]
     steps:
       - uses: actions/checkout@v4
       - uses: crystal-lang/install-crystal@v1
@@ -20,18 +20,6 @@ jobs:
         run: shards install
       - name: Run tests
         run: crystal spec
-
-  # The linter is a dev tool and may need a newer Crystal than the
-  # declared minimum, so it runs on latest only.
-  lint:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: crystal-lang/install-crystal@v1
-        with:
-          crystal: latest
-      - name: Install shards
-        run: shards install
       - name: Lint
         run: |
           mkdir -p bin
