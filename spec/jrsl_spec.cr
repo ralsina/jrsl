@@ -1,5 +1,32 @@
 require "./spec_helper"
 require "yaml"
+require "crimage"
+
+# Deterministic test image, generated on the fly: left half opaque red,
+# right half fully transparent. Yields the path to the written PNG and
+# deletes it afterwards, so no binary fixtures are needed in the repo.
+def with_test_image(width : Int32, height : Int32, &)
+  path = File.tempname("jrsl-spec", ".png")
+  begin
+    image = CrImage::RGBA.new(CrImage.rect(0, 0, width, height))
+    (0...width).each do |x|
+      (0...height).each do |y|
+        color = if x < width // 2
+                  CrImage::Color::RGBA.new(200u8, 30u8, 30u8, 255u8)
+                else
+                  CrImage::Color::RGBA.new(0u8, 0u8, 0u8, 0u8)
+                end
+        image.set(x, y, color)
+      end
+    end
+    File.open(path, "w") do |file|
+      CrImage.write(file, image, ".png")
+    end
+    yield path
+  ensure
+    File.delete(path) if File.exists?(path)
+  end
+end
 
 describe Jrsl do
   describe ".parse_slides" do
@@ -304,18 +331,19 @@ describe Jrsl do
   end
 
   describe ".render_image_to_string" do
-    it "renders actual presentation image without crashing" do
-      image_path = "#{__DIR__}/../charla/ralsina.jpg"
-      result = Jrsl.render_image_to_string(image_path, 119, 14)
+    it "renders an image without crashing" do
+      with_test_image(200, 100) do |image_path|
+        result = Jrsl.render_image_to_string(image_path, 119, 14)
 
-      # Should return a tuple with rendered string, line count, and width
-      rendered, line_count, width = result || fail("expected a rendered image")
-      rendered.should be_a(String)
-      rendered.size.should be > 0
-      line_count.should be > 0
-      line_count.should be <= 14
-      width.should be > 0
-      width.should be <= 119
+        # Should return a tuple with rendered string, line count, and width
+        rendered, line_count, width = result || fail("expected a rendered image")
+        rendered.should be_a(String)
+        rendered.size.should be > 0
+        line_count.should be > 0
+        line_count.should be <= 14
+        width.should be > 0
+        width.should be <= 119
+      end
     end
 
     it "returns nil for non-existent image" do
@@ -324,13 +352,23 @@ describe Jrsl do
     end
 
     it "returns correct width that doesn't include ANSI codes" do
-      image_path = "#{__DIR__}/../charla/ralsina.jpg"
-      result = Jrsl.render_image_to_string(image_path, 119, 14)
+      with_test_image(200, 100) do |image_path|
+        result = Jrsl.render_image_to_string(image_path, 119, 14)
 
-      rendered, line_count, width = result || fail("expected a rendered image")
+        rendered, line_count, width = result || fail("expected a rendered image")
 
-      # Width should be much smaller than the string size (which includes ANSI codes)
-      width.should be < rendered.size
+        # Width should be much smaller than the string size (which includes ANSI codes)
+        width.should be < rendered.size
+      end
+    end
+
+    it "respects a small maximum width" do
+      with_test_image(200, 100) do |image_path|
+        result = Jrsl.render_image_to_string(image_path, 40, 14)
+
+        _, line_count, width = result || fail("expected a rendered image")
+        width.should be <= 40
+      end
     end
   end
 end
