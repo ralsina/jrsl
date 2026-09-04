@@ -7,7 +7,7 @@ require "sixteen"
 require "crimage"
 
 module Jrsl
-  VERSION = "0.3.0"
+  VERSION = "0.4.0"
 
   # Maximum width in terminal columns for rendered images
   IMAGE_MAX_WIDTH = 119
